@@ -1,0 +1,33 @@
+/* eslint-disable no-unused-vars */
+import { Model } from 'mongoose';
+import { USER_ROLE } from './user.constant';
+import { TUserFind } from './user.model';
+
+export interface TUser extends Document {
+  _id?: string;
+  name: string;
+  email?: string;
+  mobile: string;
+  password: string;
+  passwordChangedAt?: Date;
+  role: 'superAdmin' | 'admin' | 'user';
+  status: 'active' | 'inactive';
+  isDeleted: boolean;
+  isMobileVerify?: boolean;
+  isEmailVerify?: boolean;
+  accessToken?: string;
+}
+export interface UserModel extends Model<TUser> {
+  userFindByMobile(mobile: string): Promise<TUser | null>;
+  userFind(payload: TUserFind): Promise<TUser | null>;
+  isPasswordMatched(
+    plainTextPassword: string,
+    hashedPassword: string
+  ): Promise<boolean>;
+  isJWTIssuedBeforePasswordChanged(
+    passwordChangedTimestamp: Date,
+    jwtIssuedTimestamp: number
+  ): boolean;
+}
+
+export type TUserRole = keyof typeof USER_ROLE;
