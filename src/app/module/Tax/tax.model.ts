@@ -45,13 +45,13 @@ const taxModel = new Schema(
     },
     vechile_tax_token: {
       type: String,
-      required: true,
     },
     loan_statement: {
       type: String,
     },
     is_taxable_income: {
       type: Boolean,
+      default: false,
       required: true,
     },
     status: {
@@ -76,4 +76,4 @@ const taxModel = new Schema(
   }
 );
 
-export default model('Tax', taxModel);
+export const Tax = model('Tax', taxModel);
