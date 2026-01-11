@@ -59,8 +59,6 @@ const createForTaxService = async (
 
   await uploadFilesToCloud(files, payload);
 
-  console.log(payload);
-
   if (!payload.mobile) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Mobile number is required');
   }
