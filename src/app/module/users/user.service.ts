@@ -7,8 +7,7 @@ import config from '../../config';
 
 const createUserIntoDb = async (payload: TUser) => {
   try {
-    console.log(payload);
-    const existingUser = await User.findOne({ mobile: payload.mobile });
+    const existingUser = await User.findOne({ mobile: payload.mobile, email: payload.email });
 
     if (existingUser) {
       throw new AppError(httpStatus.BAD_REQUEST, 'The user already created');

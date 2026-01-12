@@ -54,6 +54,13 @@ const taxModel = new Schema(
       default: false,
       required: true,
     },
+    tax_types: [
+      {
+        ref: 'TaxType',
+        type: Schema.Types.ObjectId,
+        required: true,
+      },
+    ],
     status: {
       type: String,
       default: 'pending',

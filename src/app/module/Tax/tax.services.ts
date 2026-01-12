@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import { extractText, validateETIN } from '../../utils';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 import { Tax } from './tax.model';
+import taxTypesModel from '../taxTypes/tax.types.model';
 
 const REQUIRED_FILES = ['etin_file', 'salary_statement', 'bank_statement'];
 
@@ -72,6 +73,7 @@ const createForTaxService = async (
   }
 
   const result = await Tax.create(payload);
+  await taxTypesModel.updateMany({ _id: { $in: payload.tax_types } }, { $push: { tax_orders_id: result._id } });
 
   return result;
 };
