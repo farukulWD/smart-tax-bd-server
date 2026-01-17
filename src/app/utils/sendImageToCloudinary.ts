@@ -9,14 +9,44 @@ cloudinary.config({
   api_secret: config.cloudinary_api_secret,
 });
 
+const fileFilter = (
+  req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  const allowedMimeTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'application/pdf',
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        `Invalid file type. Only images (jpg, jpeg, png, gif, webp) and PDFs are allowed.`
+      )
+    );
+  }
+};
+
 export const sendImageToCloudinary = (
   imageName: string,
-  path: string
+  path: string,
+  mimeType: string
 ): Promise<Record<string, unknown>> => {
   return new Promise((resolve, reject) => {
+    const isPdf = mimeType === 'application/pdf';
     cloudinary.uploader.upload(
       path,
-      { public_id: imageName.trim() },
+      {
+        public_id: imageName.trim(),
+        resource_type: isPdf ? 'raw' : 'auto',
+      },
       function (error, result) {
         if (error) {
           reject(error);
@@ -45,4 +75,12 @@ const storage = multer.diskStorage({
   },
 });
 
-export const upload = multer({ storage: storage });
+// File filter to validate file types
+
+export const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+});

@@ -9,9 +9,22 @@ import { createToken, verifyToken } from './auth.utils';
 import { User } from '../users/user.model';
 
 const loginUser = async (payload: TLoginUser) => {
-  const user = await User.findOne({ mobile: payload.mobile }).select(
-    '+password'
-  );
+  const { mobile, email } = payload;
+
+  if (!mobile && !email) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Mobile or Email is required for login'
+    );
+  }
+
+  const conditions = [];
+  if (mobile) conditions.push({ mobile });
+  if (email) conditions.push({ email });
+
+  const user = await User.findOne({
+    $or: conditions,
+  }).select('+password');
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'This user is not found !');
@@ -153,25 +166,29 @@ const refreshToken = async (token: string) => {
   };
 };
 
-const forgetPassword = async (mobile: string) => {
+const forgetPassword = async (payload: TLoginUser) => {
   // checking if the user is exist
-  const user = await User.userFind({ mobile: mobile });
+  const { mobile, email } = payload;
+
+  if (!email) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Email is required for forget password'
+    );
+  }
+
+  const user = await User.findOne({
+    email,
+  });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'This user is not found !');
   }
 
-  // checking if the user is blocked
-  const userStatus = user?.status;
-
-  if (!user._id) {
-    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User ID is missing');
-  }
-
   const jwtPayload = {
     userId: user._id,
     role: user.role,
-    mobile: user.mobile,
+    email: user.email,
   };
 
   const resetToken = createToken(
@@ -180,17 +197,32 @@ const forgetPassword = async (mobile: string) => {
     '10m'
   );
 
-  const resetUILink = `${config.reset_pass_ui_link}?id=${user._id}&token=${resetToken} `;
+  const resetUILink = `${config.reset_pass_ui_link}?id=${user._id}&token=${resetToken}`;
 
-  sendEmail(user.email as string, resetUILink);
+  sendEmail(
+    user.email as string,
+    `
+    <div>
+    <p>Click the button below to reset your password</p>
+      <a href="${resetUILink}">
+        <button>Reset Password</button>
+      </a>
+    </div>
+    `
+  );
 };
 
-const resetPassword = async (
-  payload: { mobile: string; newPassword: string },
-  token: string
-) => {
+const resetPassword = async (payload: {
+  newPassword: string;
+  token: string;
+}) => {
   // checking if the user is exist
-  const user = await User.userFindByMobile(payload?.mobile);
+  const decoded = jwt.verify(
+    payload.token,
+    config.jwt_access_secret as string
+  ) as JwtPayload;
+
+  const user = await User.findOne({ email: decoded.email });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'This user is not found !');
@@ -209,17 +241,6 @@ const resetPassword = async (
     throw new AppError(httpStatus.FORBIDDEN, 'This user is inactive ! !');
   }
 
-  const decoded = jwt.verify(
-    token,
-    config.jwt_access_secret as string
-  ) as JwtPayload;
-
-  //localhost:3000?id=A-0001&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJBLTAwMDEiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDI4NTA2MTcsImV4cCI6MTcwMjg1MTIxN30.-T90nRaz8-KouKki1DkCSMAbsHyb9yDi0djZU3D6QO4
-
-  if (payload.mobile !== decoded.mobile) {
-    throw new AppError(httpStatus.FORBIDDEN, 'You are forbidden!');
-  }
-
   //hash new password
   const newHashedPassword = await bcrypt.hash(
     payload.newPassword,
@@ -228,8 +249,7 @@ const resetPassword = async (
 
   await User.findOneAndUpdate(
     {
-      mobile: decoded.phone,
-      role: decoded.role,
+      email: decoded.email,
     },
     {
       password: newHashedPassword,
@@ -238,10 +258,10 @@ const resetPassword = async (
   );
 };
 
-const logoutUser = async (mobile: string) => {
+const logoutUser = async (email: string) => {
   await User.findOneAndUpdate(
     {
-      mobile: mobile,
+      email: email,
     },
     {
       accessToken: null,

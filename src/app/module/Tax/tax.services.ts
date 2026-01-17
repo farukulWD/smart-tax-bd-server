@@ -20,7 +20,7 @@ const OPTIONAL_FILES = [
 
 const uploadFilesToCloud = async (
   files: Express.Multer.File[],
-  payload: any
+  payload: any,
 ) => {
   for (const field of [...REQUIRED_FILES, ...OPTIONAL_FILES]) {
     const found = files.find(f => f.fieldname === field);
@@ -31,68 +31,102 @@ const uploadFilesToCloud = async (
     }
 
     if (found) {
-      const imageName = `${payload?.mobile}_${field}`;
+      const fileName = found.originalname
+        .replace(/\.[^/.]+$/, '')
+        .replace(/\s+/g, '_');
       const path = found.path;
-      const { secure_url } = await sendImageToCloudinary(imageName, path);
+      const { secure_url } = await sendImageToCloudinary(
+        fileName,
+        path,
+        found.mimetype,
+      );
       payload[field] = secure_url as string;
     }
   }
 };
 
-const createForTaxService = async (
-  files: Express.Multer.File[],
-  payload: any
-) => {
-  const etinFile = files.find(f => f.fieldname === 'etin_file');
-  if (!etinFile) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'etin_file is required');
-  }
+const createForTaxService = async (payload: any) => {
+  // const etinFile = files.find(f => f.fieldname === 'etin_file');
+  // if (!etinFile) {
+  //   throw new AppError(httpStatus.BAD_REQUEST, 'etin_file is required');
+  // }
 
-  const text = await extractText(etinFile);
-  const isValid = validateETIN(text);
+  // const text = await extractText(etinFile);
+  // const isValid = validateETIN(text);
 
-  if (!isValid) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'The tin certificate is not valid'
-    );
-  }
+  // if (!isValid) {
+  //   throw new AppError(
+  //     httpStatus.BAD_REQUEST,
+  //     'The tin certificate is not valid',
+  // );
+  // }
 
-  await uploadFilesToCloud(files, payload);
+  // await uploadFilesToCloud(files, payload);
 
   if (!payload.mobile) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Mobile number is required');
   }
 
-  if (!payload.etin_number) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tin number is required');
-  }
-
   if (!payload.tax_year) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tin number is required');
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
 
   const result = await Tax.create(payload);
-  await taxTypesModel.updateMany({ _id: { $in: payload.tax_types } }, { $push: { tax_orders_id: result._id } });
+  await taxTypesModel.updateMany(
+    { _id: { $in: payload.tax_types } },
+    { $push: { tax_orders_id: result._id } },
+  );
 
   return result;
 };
 
-const getTaxService = () => {
+const getTaxService = async () => {
   // Implementation for getting a tax service
+  const result = await Tax.find({});
+  return result;
 };
 
-const updateTaxService = () => {
+const getUserOrderService = async (userId: string) => {
+  // Implementation for getting a user order service
+  if (!userId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'User id is required');
+  }
+  const result = await Tax.find({ userId });
+  return result;
+};
+
+const getSingleTaxService = async (id: string) => {
+  // Implementation for getting a single tax service
+  if (!id) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax id is required');
+  }
+  const result = await Tax.findById(id);
+  return result;
+};
+
+const updateTaxService = async (id: string, payload: any) => {
   // Implementation for updating a tax service
+  if (!id) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax id is required');
+  }
+  const result = await Tax.findByIdAndUpdate(id, payload, { new: true });
+  return result;
 };
 
-const deleteTaxService = () => {
+const deleteTaxService = async (id: string) => {
   // Implementation for deleting a tax service
+  if (!id) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax id is required');
+  }
+  const result = await Tax.findByIdAndDelete(id);
+  return result;
 };
 
 export const TaxService = {
   createForTaxService,
   getTaxService,
+  getSingleTaxService,
   updateTaxService,
   deleteTaxService,
+  getUserOrderService,
 };

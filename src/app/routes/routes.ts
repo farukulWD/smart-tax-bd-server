@@ -3,6 +3,7 @@ import { UserRoutes } from '../module/users/user.route';
 import { AuthRoutes } from '../module/Auth/auth.route';
 import { TaxRoutes } from '../module/Tax/tax.route';
 import { TaxTypesRoute } from '../module/taxTypes/tax.types.route';
+import { FileRoute } from '../module/files/file.route';
 
 const router = Router();
 
@@ -16,12 +17,16 @@ const moduleRoutes = [
     route: AuthRoutes,
   },
   {
-    path: '/tax',
+    path: '/tax-orders',
     route: TaxRoutes,
   },
   {
     path: '/tax-types',
     route: TaxTypesRoute,
+  },
+  {
+    path: '/files',
+    route: FileRoute,
   },
 ];
 

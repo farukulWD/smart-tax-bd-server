@@ -6,48 +6,14 @@ const taxModel = new Schema(
       type: String,
       required: true,
     },
-    etin_number: {
+    tax_or_vat_number: {
       type: String,
       required: true,
     },
-    etin_file: {
-      type: String,
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
-    },
-    salary_statement: {
-      type: String,
-      required: true,
-    },
-    gpf_statement: {
-      type: String,
-    },
-    rpf_statement: {
-      type: String,
-    },
-    pf_statement: {
-      type: String,
-    },
-    nps_statement: {
-      type: String,
-    },
-    bank_statement: {
-      type: String,
-      required: true,
-    },
-    land_deed: {
-      type: String,
-    },
-    other_document: {
-      type: String,
-    },
-    vechile_buy_recipt: {
-      type: String,
-    },
-    vechile_tax_token: {
-      type: String,
-    },
-    loan_statement: {
-      type: String,
     },
     is_taxable_income: {
       type: Boolean,
@@ -80,7 +46,7 @@ const taxModel = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 export const Tax = model('Tax', taxModel);

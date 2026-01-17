@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 const loginValidationSchema = z.object({
   body: z.object({
-    mobile: z.string({ required_error: 'User mobile is required.' }),
+    mobile: z.string({ required_error: 'User mobile is required.' }).optional(),
+    email: z.string({ required_error: 'User email is required.' }).optional(),
     password: z.string({ required_error: 'Password is required' }),
   }),
 });
@@ -26,9 +27,16 @@ const refreshTokenValidationSchema = z.object({
 
 const forgetPasswordValidationSchema = z.object({
   body: z.object({
-    mobile: z.string({
-      required_error: 'User mobile is required!',
-    }),
+    mobile: z
+      .string({
+        required_error: 'User mobile is required!',
+      })
+      .optional(),
+    email: z
+      .string({
+        required_error: 'User email is required!',
+      })
+      .optional(),
   }),
 });
 

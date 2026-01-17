@@ -8,22 +8,22 @@ const route = Router();
 route.post(
   '/create-tax-type',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),
-  TaxTypeController.createTaxType
+  TaxTypeController.createTaxType,
 );
 route.get(
   '/get-all-tax-types',
-  auth(USER_ROLE.superAdmin, USER_ROLE.admin),
-  TaxTypeController.getAllTaxTypes
+  auth(USER_ROLE.superAdmin, USER_ROLE.admin, USER_ROLE.user),
+  TaxTypeController.getAllTaxTypes,
 );
 route.patch(
   '/update-tax-type/:id',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),
-  TaxTypeController.updateTaxType
+  TaxTypeController.updateTaxType,
 );
 route.delete(
   '/delete-tax-type/:id',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),
-  TaxTypeController.deleteTaxType
+  TaxTypeController.deleteTaxType,
 );
 
 export const TaxTypesRoute = route;
