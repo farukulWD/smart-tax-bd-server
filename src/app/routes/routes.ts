@@ -4,6 +4,7 @@ import { AuthRoutes } from '../module/Auth/auth.route';
 import { TaxRoutes } from '../module/Tax/tax.route';
 import { TaxTypesRoute } from '../module/taxTypes/tax.types.route';
 import { FileRoute } from '../module/files/file.route';
+import { paymentRoutes } from '../module/payments/payment.route';
 
 const router = Router();
 
@@ -27,6 +28,10 @@ const moduleRoutes = [
   {
     path: '/files',
     route: FileRoute,
+  },
+  {
+    path: '/payments',
+    route: paymentRoutes,
   },
 ];
 

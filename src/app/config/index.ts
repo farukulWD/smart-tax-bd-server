@@ -12,6 +12,7 @@ export default {
   env: process.env.NODE_ENV,
   port: process.env.PORT,
   reset_pass_ui_link: process.env.RESET_UI_LINK,
+  client_url: process.env.CLIENT_URL,
   database_url: process.env.DATABASE_URL,
   bcrypt_salt_rounds: process.env.SALT,
   jwt_access_secret: process.env.JWT_ACCESS_SECRET,
@@ -23,4 +24,9 @@ export default {
   cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET,
   email_user: process.env.EMAIL_USER,
   email_pass: process.env.EMAIL_PASS,
+  // sslcommerz config
+  store_id: process.env.STORE_ID,
+  store_password: process.env.STORE_PASSWORD,
+  is_live: process.env.IS_LIVE === 'true',
+  payment_base_url: process.env.PAYMENT_BASE_URL,
 };

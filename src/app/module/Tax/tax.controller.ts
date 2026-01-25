@@ -25,6 +25,7 @@ const createTax = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getUserOrder = catchAsync(async (req: Request, res: Response) => {
+  console.log(req.user);
   const result = await TaxService.getUserOrderService(req.user.userId);
 
   sendResponse(res, {
