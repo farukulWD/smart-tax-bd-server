@@ -2,17 +2,35 @@ import { model, Schema } from 'mongoose';
 import { Taxtypes } from './tax.types.interface';
 
 const taxTypesSchema = new Schema<Taxtypes>({
-  name:{ 
-    type: String, 
-    required: true 
+  title: {
+    type: String,
+    required: true,
   },
-  rate: { 
-    type: Number, 
-
+  rate: {
+    type: Number,
   },
-  type: { 
-    type: String, 
-    required: true 
+  value: {
+    type: String,
+    required: true,
+    unique: true,
+    enum: [
+      'income_tax',
+      'house_rental_tax',
+      'property_tax',
+      'business_tax',
+      'import_duty',
+      'vat',
+      'excise_duty',
+      'customs_duty',
+      'capital_gains_tax',
+      'gift_tax',
+      'inheritance_tax',
+      'sales_tax',
+      'service_tax',
+      'entertainment_tax',
+      'environmental_tax',
+      'wealth_tax',
+    ],
   },
   tax_orders_id: [
     {
@@ -20,20 +38,20 @@ const taxTypesSchema = new Schema<Taxtypes>({
       ref: 'Tax',
     },
   ],
-  description: { 
-    type: String 
+  description: {
+    type: String,
   },
-  isActive: { 
-    type: Boolean, 
-    default: true 
+  isActive: {
+    type: Boolean,
+    default: true,
   },
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
+  createdAt: {
+    type: Date,
+    default: Date.now,
   },
-  updatedAt: { 
-    type: Date, 
-    default: Date.now 
+  updatedAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 

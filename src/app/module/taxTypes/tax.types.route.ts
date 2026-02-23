@@ -12,7 +12,7 @@ route.post(
 );
 route.get(
   '/get-all-tax-types',
-  auth(USER_ROLE.superAdmin, USER_ROLE.admin, USER_ROLE.user),
+  // auth(USER_ROLE.superAdmin, USER_ROLE.admin, USER_ROLE.user),
   TaxTypeController.getAllTaxTypes,
 );
 route.patch(

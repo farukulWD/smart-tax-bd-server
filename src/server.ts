@@ -64,38 +64,6 @@ async function bootstrap() {
 
     const io = initializeSocketIO(server);
 
-
-    // app.use((req, res, next) => {
-    //   req.io = io;
-    //   // req.redisClient = client
-    //   next();
-    // });
-
-    io.on("connection", (socket:any) => {
-      console.log("user connected");
-      socket.on("newnotification", (data:any) => {
-        const { userId, notification } = data;
-        if (userId) {
-          io.to(`user:${userId}`).emit("newnotification", { notification });
-        }
-      });
-
-      socket.on("attendance",(data:any)=>{
-        rabbitMq.sendMessageQueue(
-          "notifications",
-          JSON.stringify({
-            type: "attendance",
-            data: 
-              data,
-            
-          }),
-        );
-      })
-
-      socket.on("disconnect", () => {
-        console.log("user disconnected.");
-      });
-    });
   } catch (startupError) {
     logger.error('Failed to bootstrap the application:', startupError);
     process.exit(1);

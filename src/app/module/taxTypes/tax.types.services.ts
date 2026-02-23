@@ -4,19 +4,19 @@ import httpStatus from 'http-status';
 import taxTypesModel from './tax.types.model';
 
 const createTaxTypeToDB = async (taxType: Taxtypes) => {
-  if (!taxType.name) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type name is required');
+  if (!taxType.title) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type title is required');
   }
 
   if (!taxType.rate) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type rate is required');
   }
 
-  if (!taxType.type) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type type is required');
+  if (!taxType.value) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type value is required');
   }
 
-  const isExist = await taxTypesModel.findOne({ type: taxType.type });
+  const isExist = await taxTypesModel.findOne({ value: taxType.value });
   if (isExist) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type already exists');
   }

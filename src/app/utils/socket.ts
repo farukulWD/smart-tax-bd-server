@@ -1,46 +1,81 @@
-const { Server } = require("socket.io");
-import { Server as HttpServer } from "http";
-import { Server as SocketIOServer, Socket } from "socket.io";
-// const { createAdapter } = require("@socket.io/redis-adapter");
-// const redisClient = require("./redis");
+import { Server as HttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import config from '../config';
 
 let io: SocketIOServer;
 
-interface InitializeSocketIO {
-  (server: HttpServer): SocketIOServer;
-}
-
-const initializeSocketIO: InitializeSocketIO = (server) => {
-  io = new Server(server, {
+const initializeSocketIO = (server: HttpServer): SocketIOServer => {
+  io = new SocketIOServer(server, {
     pingTimeout: 60000,
     cors: {
-      origin: "*",
+      origin: '*',
     },
   });
-  try {
-    // const subClient = redisClient.duplicate();
-    // io.adapter(createAdapter(redisClient, subClient));
-  } catch (e: any) {
-    console.log(e.message);
-  }
 
-  // You can add your Socket.IO event listeners here.
-  // For example:
-  // io.on("connection", (socket) => {
-  //   console.log("A user connected");
-  // });
+  io.use((socket, next) => {
+    const token = socket.handshake.headers.authorization;
+    if (!token) {
+      return next(new Error('Authentication error: Token missing'));
+    }
+
+    try {
+      const decoded = jwt.verify(
+        token,
+        config.jwt_access_secret as string,
+      ) as JwtPayload;
+      (socket as any).user = decoded;
+      next();
+    } catch (err) {
+      return next(new Error('Authentication error: Invalid token'));
+    }
+  });
+
+  io.on('connect', socket => {
+    const user = (socket as any).user;
+    const userId = user?.userId;
+
+    if (userId) {
+      socket.join(userId);
+      console.log(`⚡ User ${userId} joined room: ${userId}`);
+    }
+
+    console.log('⚡ A user connected:', socket.id);
+
+    socket.on('disconnect', () => {
+      console.log('❌ User disconnected:', socket.id);
+    });
+  });
 
   return io;
 };
 
 const getIO = () => {
   if (!io) {
-    throw new Error("Socket.IO is not initialized");
+    throw new Error('Socket.IO is not initialized');
   }
   return io;
 };
 
-export {
-  initializeSocketIO,
-  getIO,
+/**
+ * Universal notification helper
+ * @param target - userId (string) for targeted notification, or null for broadcast
+ * @param key - The notification key (e.g., 'Order_created')
+ * @param payload - The data to send
+ */
+const emitNotification = (target: string | null, key: string, payload: any) => {
+  const ioInstance = getIO();
+  const data = {
+    key,
+    payload,
+    timestamp: new Date(),
+  };
+
+  if (target) {
+    ioInstance.to(target).emit('notification', data);
+  } else {
+    ioInstance.emit('notification', data);
+  }
 };
+
+export { initializeSocketIO, getIO, emitNotification };
