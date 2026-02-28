@@ -71,6 +71,18 @@ const createForTaxService = async (payload: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
 
+  // Calculate payable amount on server for security
+  if (payload.tax_types && Array.isArray(payload.tax_types)) {
+    const selectedTaxTypes = await taxTypesModel.find({
+      _id: { $in: payload.tax_types },
+    });
+    const totalAmount = selectedTaxTypes.reduce(
+      (sum, type) => sum + (type.rate || 0),
+      0,
+    );
+    payload.payable_amount = totalAmount;
+  }
+
   const result = await Tax.create(payload);
   await taxTypesModel.updateMany(
     { _id: { $in: payload.tax_types } },
