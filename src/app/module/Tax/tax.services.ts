@@ -71,7 +71,35 @@ const createForTaxService = async (payload: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
 
-  const result = await Tax.create(payload);
+  if (!Array.isArray(payload.tax_types) || payload.tax_types.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax types are required');
+  }
+
+  const selectedTaxTypes = await taxTypesModel.find({
+    _id: { $in: payload.tax_types },
+  });
+
+  if (selectedTaxTypes.length !== payload.tax_types.length) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'One or more tax types are invalid');
+  }
+
+  const payableAmount = selectedTaxTypes.reduce(
+    (sum, taxType) => sum + Number(taxType.rate || 0),
+    0,
+  );
+
+  if (payableAmount <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Payable amount could not be calculated from selected tax types',
+    );
+  }
+
+  const result = await Tax.create({
+    ...payload,
+    payable_amount: payableAmount,
+  });
+
   await taxTypesModel.updateMany(
     { _id: { $in: payload.tax_types } },
     { $push: { tax_orders_id: result._id } },

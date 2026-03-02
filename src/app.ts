@@ -9,8 +9,7 @@ import httpStatus from 'http-status';
 
 const app: Application = express();
 
-const allowedOrigins = ['http://localhost:3000'];
-
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -21,7 +20,7 @@ app.use(
       }
     },
     credentials: true,
-  })
+  }),
 );
 
 app.use(cookieParser());

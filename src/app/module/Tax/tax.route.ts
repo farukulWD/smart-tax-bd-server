@@ -23,16 +23,16 @@ router.get(
   TaxController.getSingleTax,
 );
 
-router.get(
+router.patch(
   '/get-tax/:id',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.getSingleTax,
+  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.updateTax,
 );
 
-router.get(
+router.delete(
   '/get-tax/:id',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.getSingleTax,
+  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.deleteTax,
 );
 
 router.get('/get-user-order', auth(USER_ROLE.user), TaxController.getUserOrder);

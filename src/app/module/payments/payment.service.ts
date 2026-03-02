@@ -7,8 +7,38 @@ import httpStatus from 'http-status';
 import { Payment } from './payment.model';
 import { sslcz } from '../../utils/ssl';
 import config from '../../config';
+import taxTypesModel from '../taxTypes/tax.types.model';
 
 const clientUrl = config.client_url;
+
+const resolvePayableAmount = async (orderData: any) => {
+  const existingAmount = Number(orderData?.payable_amount || 0);
+  if (existingAmount > 0) {
+    return existingAmount;
+  }
+
+  const taxTypeIds = Array.isArray(orderData?.tax_types) ? orderData.tax_types : [];
+  if (taxTypeIds.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Payable amount is required');
+  }
+
+  const selectedTaxTypes = await taxTypesModel.find({
+    _id: { $in: taxTypeIds },
+  });
+
+  const calculatedAmount = selectedTaxTypes.reduce(
+    (sum, taxType) => sum + Number(taxType.rate || 0),
+    0,
+  );
+
+  if (calculatedAmount <= 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Payable amount is required');
+  }
+
+  await Tax.findByIdAndUpdate(orderData._id, { payable_amount: calculatedAmount });
+  return calculatedAmount;
+};
+
 const inintPaymentToDb = async (paymentData: any) => {
   if (!paymentData.orderId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Order ID is required');
@@ -19,16 +49,13 @@ const inintPaymentToDb = async (paymentData: any) => {
   }
 
   const user = orderData?.userId as unknown as TUser;
-  const tran_id = new Types.ObjectId().toString()
-
-  if(!orderData?.payable_amount){
-    throw new AppError(httpStatus.BAD_REQUEST, 'Payable amount is required');
-  }
+  const tran_id = new Types.ObjectId().toString();
+  const payableAmount = await resolvePayableAmount(orderData);
 
   
 
   const data = {
-    total_amount: orderData?.payable_amount,
+    total_amount: payableAmount,
     currency: 'BDT',
     tran_id: tran_id, 
     success_url: `${clientUrl}/success`,
@@ -70,7 +97,7 @@ const inintPaymentToDb = async (paymentData: any) => {
   await Payment.create({
     userId: user._id,
     orderId: orderData._id,
-    amount: orderData?.payable_amount,
+    amount: payableAmount,
     currency: 'BDT',
     status: 'pending',
     transaction_id: tran_id,

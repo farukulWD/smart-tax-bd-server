@@ -26,8 +26,10 @@ const getAllTaxTypes = catchAsync(async (req, res) => {
 });
 
 const updateTaxType = catchAsync(async (req, res) => {
+  // req.params.id can be string or string[] so normalize to string
+  const id = String(req.params.id);
   const result = await TaxTypeService.updateTaxTypeInDB(
-    req.params.id,
+    id,
     req.body
   );
 
@@ -40,7 +42,8 @@ const updateTaxType = catchAsync(async (req, res) => {
 });
 
 const deleteTaxType = catchAsync(async (req, res) => {
-  const result = await TaxTypeService.deleteTaxTypeFromDB(req.params.id);
+  const id = String(req.params.id);
+  const result = await TaxTypeService.deleteTaxTypeFromDB(id);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
