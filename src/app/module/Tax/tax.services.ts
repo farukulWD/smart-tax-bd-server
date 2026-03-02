@@ -80,7 +80,10 @@ const createForTaxService = async (payload: any) => {
   });
 
   if (selectedTaxTypes.length !== payload.tax_types.length) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'One or more tax types are invalid');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'One or more tax types are invalid',
+    );
   }
 
   const payableAmount = selectedTaxTypes.reduce(
