@@ -11,30 +11,30 @@ router.post(
   TaxController.createTax,
 );
 
-router.get(
-  '/get-tax',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.getAllTax,
-);
+// router.get(
+//   '/get-tax',
+//   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+//   TaxController.getAllTax,
+// );
 
-router.get(
-  '/get-tax/:id',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.getSingleTax,
-);
+// router.get(
+//   '/get-tax/:id',
+//   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+//   TaxController.getSingleTax,
+// );
 
-router.patch(
-  '/get-tax/:id',
-  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.updateTax,
-);
+// router.patch(
+//   '/get-tax/:id',
+//   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+//   TaxController.updateTax,
+// );
 
-router.delete(
-  '/get-tax/:id',
-  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.deleteTax,
-);
+// router.delete(
+//   '/get-tax/:id',
+//   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+//   TaxController.deleteTax,
+// );
 
-router.get('/get-user-order', auth(USER_ROLE.user), TaxController.getUserOrder);
+// router.get('/get-user-order', auth(USER_ROLE.user), TaxController.getUserOrder);
 
 export const TaxRoutes = router;
