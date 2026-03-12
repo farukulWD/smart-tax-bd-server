@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 import { IncomeSource, ITax } from './tax.interface';
 
-const fee_amount = 1000; // Set a fixed fee amount
+const fee_amount = 1000;
 
 const taxModel = new Schema<ITax>(
   {
@@ -9,6 +9,16 @@ const taxModel = new Schema<ITax>(
       type: Schema.Types.ObjectId,
       required: true,
       ref: 'User',
+    },
+    is_self: {
+      type: Boolean,
+      required: true,
+      default: true,
+    },
+    for_other_person: {
+      type: Boolean,
+      required: true,
+      default: false,
     },
     personal_iformation: {
       name: {
@@ -44,11 +54,18 @@ const taxModel = new Schema<ITax>(
         'cancelled',
         'completed',
         'in_progress',
+        'order_placed',
         'on_hold',
         'archived',
         'deleted',
       ],
       default: 'draft',
+    },
+    current_step: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: 1,
+      required: true,
     },
     are_you_get_notice_from_tax_office: {
       type: Boolean,
@@ -67,7 +84,7 @@ const taxModel = new Schema<ITax>(
     },
     source_of_income: {
       type: [String],
-      enum: IncomeSource,
+      enum: Object.values(IncomeSource),
       required: true,
     },
     tax_year: {
@@ -93,7 +110,7 @@ const taxModel = new Schema<ITax>(
     fee_due_amount: {
       type: Number,
       required: true,
-      default: 0,
+      default: fee_amount || 0,
     },
     tax_paid_date: {
       type: Date,

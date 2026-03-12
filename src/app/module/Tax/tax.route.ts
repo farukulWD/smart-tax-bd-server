@@ -6,35 +6,38 @@ import { USER_ROLE } from '../users/user.constant';
 const router = Router();
 
 router.post(
-  '/order-tax',
+  '/order-tax/step-1',
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.createTax,
+  TaxController.createTaxStepOne,
 );
 
-// router.get(
-//   '/get-tax',
-//   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-//   TaxController.getAllTax,
-// );
+router.patch(
+  '/order-tax/:taxId/step-1',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.updateTaxStepOne,
+);
 
-// router.get(
-//   '/get-tax/:id',
-//   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-//   TaxController.getSingleTax,
-// );
+router.patch(
+  '/order-tax/:taxId/step-2',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.uploadTaxStepTwoDocuments,
+);
 
-// router.patch(
-//   '/get-tax/:id',
-//   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
-//   TaxController.updateTax,
-// );
+router.post(
+  '/order-tax/:taxId/step-3',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.payTaxStepThree,
+);
 
-// router.delete(
-//   '/get-tax/:id',
-//   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
-//   TaxController.deleteTax,
-// );
+router.post('/order-tax/payment/success', TaxController.taxPaymentSuccess);
+router.post('/order-tax/payment/fail', TaxController.taxPaymentFail);
+router.post('/order-tax/payment/cancel', TaxController.taxPaymentCancel);
+router.post('/order-tax/payment/ipn', TaxController.taxPaymentIpn);
 
-// router.get('/get-user-order', auth(USER_ROLE.user), TaxController.getUserOrder);
+router.get(
+  '/order-tax/:taxId',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.getSingleTaxOrder,
+);
 
 export const TaxRoutes = router;
