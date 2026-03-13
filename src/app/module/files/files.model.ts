@@ -16,6 +16,11 @@ const filesSchema = new Schema<Ifile>(
       ref: 'User',
       required: true,
     },
+    orderId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tax',
+      required: true,
+    },
     file: {
       type: String,
       required: true,
@@ -31,7 +36,7 @@ const filesSchema = new Schema<Ifile>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 export const Files = model<Ifile>('File', filesSchema);

@@ -67,9 +67,8 @@ const taxPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
   const transactionId = String(
     req.body?.tran_id || req.query?.tran_id || req.params?.transactionId || '',
   );
-  const result = await TaxService.completeTaxOrderPaymentSuccessToDB(
-    transactionId,
-  );
+  const result =
+    await TaxService.completeTaxOrderPaymentSuccessToDB(transactionId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -130,6 +129,30 @@ const getSingleTaxOrder = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getMyTaxOrders = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  console.log({ userId });
+  const result = await TaxService.getMyTaxOrdersFromDB(userId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'My tax orders fetched successfully',
+    data: result,
+  });
+});
+
+const getAllTaxOrders = catchAsync(async (req: Request, res: Response) => {
+  const result = await TaxService.getAllTaxOrdersFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'All tax orders fetched successfully',
+    data: result,
+  });
+});
+
 export const TaxController = {
   createTaxStepOne,
   updateTaxStepOne,
@@ -140,4 +163,6 @@ export const TaxController = {
   taxPaymentCancel,
   taxPaymentIpn,
   getSingleTaxOrder,
+  getMyTaxOrders,
+  getAllTaxOrders,
 };

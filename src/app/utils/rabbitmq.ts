@@ -6,8 +6,8 @@ import * as amqp from 'amqplib';
 // const QueueConfig = require("./model/crm/autodialer/autodialerConfig");
 // const { sendNotifications } = require("./V2/controller/notification");
 
-let connection: amqp.Connection;
-let channel: amqp.Channel;
+let connection: any;
+let channel: any;
 
 interface ConnectOptions {
   url: string;

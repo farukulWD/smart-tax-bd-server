@@ -289,10 +289,10 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     total_amount: feeAmount,
     currency: 'BDT',
     tran_id,
-    success_url: `${paymentBaseUrl}/api/v1/tax-orders/order-tax/payment/success`,
-    fail_url: `${paymentBaseUrl}/api/v1/tax-orders/order-tax/payment/fail`,
-    cancel_url: `${paymentBaseUrl}/api/v1/tax-orders/order-tax/payment/cancel`,
-    ipn_url: `${paymentBaseUrl}/api/v1/tax-orders/order-tax/payment/ipn`,
+    success_url: `${config.client_url}/success?tran_id=${tran_id}`,
+    fail_url: `${config.client_url}/fail?tran_id=${tran_id}`,
+    cancel_url: `${config.client_url}/cancel?tran_id=${tran_id}`,
+    ipn_url: `${config.client_url}/ipn?tran_id=${tran_id}`,
     shipping_method: 'Online',
     product_name: 'Tax Fee',
     product_category: 'Service',
@@ -425,6 +425,16 @@ const getTaxOrderByIdFromDB = async (userId: string, taxId: string) => {
   };
 };
 
+const getMyTaxOrdersFromDB = async (userId: string) => {
+  const orders = await Tax.find({ userId }).sort({ createdAt: -1 });
+  return orders;
+};
+
+const getAllTaxOrdersFromDB = async () => {
+  const orders = await Tax.find().sort({ createdAt: -1 });
+  return orders;
+};
+
 export const TaxService = {
   createTaxStepOneToDB,
   updateTaxStepOneToDB,
@@ -433,4 +443,6 @@ export const TaxService = {
   completeTaxOrderPaymentSuccessToDB,
   markTaxOrderPaymentFailedToDB,
   getTaxOrderByIdFromDB,
+  getMyTaxOrdersFromDB,
+  getAllTaxOrdersFromDB,
 };

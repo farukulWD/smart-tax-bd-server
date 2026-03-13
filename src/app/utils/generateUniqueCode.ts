@@ -12,7 +12,7 @@ export const generateUniqueCode = async () => {
     
     let nextNumber = 1; 
     if (lastUser) {
-      const lastCode = lastUser?.code ? parseInt(lastUser.code.slice(2), 10) : 0; 
+      const lastCode = (lastUser as any).code ? parseInt((lastUser as any).code.slice(2), 10) : 0; 
       nextNumber = lastCode + 1; 
     }
   

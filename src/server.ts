@@ -6,6 +6,7 @@ import { errorlogger, logger } from './app/shared/logger';
 import connectDB from './app/utils/db';
 
 import { initializeSocketIO} from './app/utils/socket';
+import { startCronJobs } from './app/utils/cronJobs';
 const connectRabbitMQ = rabbitMq.connect
 
 
@@ -17,6 +18,9 @@ async function bootstrap() {
     const server: Server = app.listen(config.port, async () => {
       console.log(`app is listening on port ${config.port}`);
       logger.info(`Server running on port ${config.port}`);
+
+      // Start the cron jobs
+      startCronJobs();
 
       try {
         await connectRabbitMQ('amqp://localhost');

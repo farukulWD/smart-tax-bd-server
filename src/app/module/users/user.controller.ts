@@ -42,7 +42,7 @@ const getMe = catchAsync(async (req, res) => {
 const updateUser = catchAsync(async (req, res) => {
   const data = req.body;
 
-  const mobile = req.params.mobile;
+  const mobile = req.params.mobile as string;
   const result = await UserServices.updateUser(mobile, data);
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -52,7 +52,7 @@ const updateUser = catchAsync(async (req, res) => {
   });
 });
 const getUser = catchAsync(async (req, res) => {
-  const mobile = req.params.mobile;
+  const mobile = req.params.mobile as string;
 
   const result = await UserServices.getAUser(mobile);
 
