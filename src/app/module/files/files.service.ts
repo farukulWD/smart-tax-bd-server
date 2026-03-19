@@ -15,14 +15,15 @@ const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   if (!user) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
   }
-  const fileName = file.originalname
-    .replace(/\.[^/.]+$/, '')
-    .replace(/\s+/g, '_');
+  const fileName =
+    file.mimetype === 'application/pdf'
+      ? file.originalname.replace(/\s+/g, '_')
+      : file.originalname.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_');
 
   const { secure_url } = await sendImageToCloudinary(
     fileName,
     file.path,
-    file.mimetype
+    file.mimetype,
   );
 
   const fileData = await Files.create({ ...payload, file: secure_url });

@@ -1,6 +1,6 @@
 {
-"workbench.colorTheme": "Default Dark Modern",
-   "[javascript]": {
+  "workbench.colorTheme": "Deepdark Material Theme | Default Version",
+  "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[typescript]": {

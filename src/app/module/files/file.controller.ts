@@ -27,7 +27,7 @@ const createFile = catchAsync(async (req, res) => {
 });
 
 const deleteFile = catchAsync(async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const result = await FileServices.deleteFileFromDB(id);
 
@@ -51,7 +51,7 @@ const getAllFiles = catchAsync(async (req, res) => {
 });
 
 const getSingleFile = catchAsync(async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const result = await FileServices.getSingleFile(id);
 

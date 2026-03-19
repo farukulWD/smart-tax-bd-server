@@ -1,90 +1,168 @@
-import { Request, Response } from 'express';
 import catchAsync from '../../utils/catchAsync';
+import { Request, Response } from 'express';
 import { TaxService } from './tax.services';
 import sendResponse from '../../utils/sendResponse';
+import httpStatus from 'http-status';
 
-const createTax = catchAsync(async (req: Request, res: Response) => {
-  const taxData = req.body;
-  // const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-
-  // const filesArray = Object.entries(files).map(([fieldName, fileDetails]) => ({
-  //   ...fileDetails[0],
-  // }));
-
-  const result = await TaxService.createForTaxService({
-    ...taxData,
-    userId: req.user.userId,
-  });
+const createTaxStepOne = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const result = await TaxService.createTaxStepOneToDB(userId, req.body);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.CREATED,
     success: true,
-    message: 'Tax created successfully',
+    message: 'Tax step-1 completed successfully',
     data: result,
   });
 });
 
-const getUserOrder = catchAsync(async (req: Request, res: Response) => {
-  console.log(req.user);
-  const result = await TaxService.getUserOrderService(req.user.userId);
+const updateTaxStepOne = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.updateTaxStepOneToDB(userId, taxId, req.body);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.OK,
     success: true,
-    message: 'Tax fetched successfully',
+    message: 'Tax step-1 updated successfully',
     data: result,
   });
 });
 
-const getAllTax = catchAsync(async (req: Request, res: Response) => {
-  const result = await TaxService.getTaxService();
+const uploadTaxStepTwoDocuments = catchAsync(
+  async (req: Request, res: Response) => {
+    const userId = String(req.user?.userId || '');
+    const taxId = String(req.params.taxId || '');
+    const { documents } = req.body;
+
+    const result = await TaxService.uploadTaxStepTwoDocumentsToDB(
+      userId,
+      taxId,
+      documents,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Tax step-2 documents uploaded successfully',
+      data: result,
+    });
+  },
+);
+
+const payTaxStepThree = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.initTaxStepThreePaymentToDB(userId, taxId);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.OK,
     success: true,
-    message: 'Tax fetched successfully',
+    message: 'Tax step-3 payment initialized successfully',
     data: result,
   });
 });
 
-const getSingleTax = catchAsync(async (req: Request, res: Response) => {
-  const result = await TaxService.getSingleTaxService(req.params.id);
+const taxPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
+  const transactionId = String(
+    req.body?.tran_id || req.query?.tran_id || req.params?.transactionId || '',
+  );
+  const result =
+    await TaxService.completeTaxOrderPaymentSuccessToDB(transactionId);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.OK,
     success: true,
-    message: 'Tax fetched successfully',
+    message: 'Payment success processed and order placed',
     data: result,
   });
 });
 
-const updateTax = catchAsync(async (req: Request, res: Response) => {
-  const result = await TaxService.updateTaxService(req.params.id, req.body);
+const taxPaymentFail = catchAsync(async (req: Request, res: Response) => {
+  const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
+  await TaxService.markTaxOrderPaymentFailedToDB(transactionId);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.OK,
+    success: false,
+    message: 'Payment failed',
+    data: null,
+  });
+});
+
+const taxPaymentCancel = catchAsync(async (req: Request, res: Response) => {
+  const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
+  await TaxService.markTaxOrderPaymentFailedToDB(transactionId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: false,
+    message: 'Payment cancelled',
+    data: null,
+  });
+});
+
+const taxPaymentIpn = catchAsync(async (req: Request, res: Response) => {
+  const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
+  if (transactionId) {
+    await TaxService.completeTaxOrderPaymentSuccessToDB(transactionId);
+  }
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
     success: true,
-    message: 'Tax updated successfully',
+    message: 'IPN received',
+    data: null,
+  });
+});
+
+const getSingleTaxOrder = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.getTaxOrderByIdFromDB(userId, taxId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Tax order fetched successfully',
     data: result,
   });
 });
 
-const deleteTax = catchAsync(async (req: Request, res: Response) => {
-  const result = await TaxService.deleteTaxService(req.params.id);
+const getMyTaxOrders = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  console.log({ userId });
+  const result = await TaxService.getMyTaxOrdersFromDB(userId);
 
   sendResponse(res, {
-    statusCode: 200,
+    statusCode: httpStatus.OK,
     success: true,
-    message: 'Tax deleted successfully',
+    message: 'My tax orders fetched successfully',
+    data: result,
+  });
+});
+
+const getAllTaxOrders = catchAsync(async (req: Request, res: Response) => {
+  const result = await TaxService.getAllTaxOrdersFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'All tax orders fetched successfully',
     data: result,
   });
 });
 
 export const TaxController = {
-  createTax,
-  getAllTax,
-  getSingleTax,
-  updateTax,
-  deleteTax,
-  getUserOrder,
+  createTaxStepOne,
+  updateTaxStepOne,
+  uploadTaxStepTwoDocuments,
+  payTaxStepThree,
+  taxPaymentSuccess,
+  taxPaymentFail,
+  taxPaymentCancel,
+  taxPaymentIpn,
+  getSingleTaxOrder,
+  getMyTaxOrders,
+  getAllTaxOrders,
 };
