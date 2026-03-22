@@ -117,9 +117,8 @@ const taxPaymentIpn = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getSingleTaxOrder = catchAsync(async (req: Request, res: Response) => {
-  const userId = String(req.user?.userId || '');
   const taxId = String(req.params.taxId || '');
-  const result = await TaxService.getTaxOrderByIdFromDB(userId, taxId);
+  const result = await TaxService.getTaxOrderByIdFromDB(taxId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
