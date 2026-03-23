@@ -108,7 +108,7 @@ const taxModel = new Schema<ITax>(
     fee_due_amount: {
       type: Number,
       required: true,
-      default: fee_amount || 0,
+      default: 0,
     },
     is_fee_due_amount_paid: {
       type: Boolean,

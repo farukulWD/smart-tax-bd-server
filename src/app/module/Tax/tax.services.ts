@@ -389,11 +389,46 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
 
+  if (taxData?.fee_due_amount && taxOrder?.is_fee_due_amount_paid) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Fee due amount is already paid',
+    );
+  }
+
+  if (taxData?.tax_payable_amount && taxOrder?.is_tax_payable_amount_paid) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Tax payable amount is already paid',
+    );
+  }
+
+  const fee_due_amount = taxData.fee_due_amount ?? taxOrder.fee_due_amount ?? 0;
+  const tax_payable_amount =
+    taxData.tax_payable_amount ?? taxOrder.tax_payable_amount ?? 0;
+
+  const getTotalAmount = () => {
+    if (taxData?.fee_due_amount) {
+      const total =
+        (taxData?.total_amount ?? 0 - taxOrder.fee_due_amount) + fee_due_amount;
+      return total;
+    }
+
+    if (taxData?.tax_payable_amount) {
+      const total =
+        (taxData?.total_amount ?? 0 - taxOrder.tax_payable_amount) +
+        tax_payable_amount;
+      return total;
+    }
+
+    return taxOrder.total_amount;
+  };
+
   const result = await Tax.findByIdAndUpdate(
     taxId,
     {
       ...taxData,
-      current_step: 3,
+      total_amount: getTotalAmount(),
       status: 'payment_pending',
     },
     { new: true },

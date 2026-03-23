@@ -1,7 +1,7 @@
 import { Schema } from 'mongoose';
 
 export interface IPayment {
-  id: string;
+  _id: string;
   userId: Schema.Types.ObjectId;
   orderId: Schema.Types.ObjectId;
   amount: number;

@@ -29,7 +29,7 @@ router.post(
   TaxController.payTaxStepThree,
 );
 
-router.post(
+router.patch(
   '/update-tax-order/:taxId',
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
   TaxController.updateTaxOrder,
