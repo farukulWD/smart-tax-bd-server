@@ -29,6 +29,12 @@ router.post(
   TaxController.payTaxStepThree,
 );
 
+router.post(
+  '/update-tax-order/:taxId',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.updateTaxOrder,
+);
+
 router.post('/payment/success', TaxController.taxPaymentSuccess);
 router.post('/payment/fail', TaxController.taxPaymentFail);
 router.post('/payment/cancel', TaxController.taxPaymentCancel);

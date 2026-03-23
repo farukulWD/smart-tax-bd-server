@@ -10,16 +10,6 @@ const taxModel = new Schema<ITax>(
       required: true,
       ref: 'User',
     },
-    is_self: {
-      type: Boolean,
-      required: true,
-      default: true,
-    },
-    for_other_person: {
-      type: Boolean,
-      required: true,
-      default: false,
-    },
     personal_iformation: {
       name: {
         type: String,
@@ -102,15 +92,35 @@ const taxModel = new Schema<ITax>(
       required: true,
       default: 0,
     },
+    is_tax_payable_amount_paid: {
+      type: Boolean,
+      default: false,
+    },
     fee_amount: {
       type: Number,
       required: true,
       default: fee_amount || 0,
     },
+    is_fee_amount_paid: {
+      type: Boolean,
+      default: false,
+    },
     fee_due_amount: {
       type: Number,
       required: true,
       default: fee_amount || 0,
+    },
+    is_fee_due_amount_paid: {
+      type: Boolean,
+      default: false,
+    },
+    total_amount: {
+      type: Number,
+      default: fee_amount || 0,
+    },
+    total_paid_amount: {
+      type: Number,
+      default: 0,
     },
     tax_paid_date: {
       type: Date,
@@ -121,4 +131,4 @@ const taxModel = new Schema<ITax>(
   },
 );
 
-export const Tax = model('Tax', taxModel);
+export const Tax = model<ITax>('Tax', taxModel);

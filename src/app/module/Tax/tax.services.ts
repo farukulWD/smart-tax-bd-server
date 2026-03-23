@@ -5,10 +5,9 @@ import { Tax } from './tax.model';
 import { Types } from 'mongoose';
 import { Files } from '../files/files.model';
 import { Payment } from '../payments/payment.model';
-import { sslcz } from '../../utils/ssl';
-import config from '../../config';
-
-const paymentBaseUrl = config.payment_base_url || '';
+import { getPaymentsType } from './tax.constant';
+import { paymentService } from '../payments/payment.service';
+import { IPaymentDataForInit } from '../payments/payment.interface';
 
 type StepOnePayload = {
   personal_iformation: IPersonalInformation;
@@ -81,7 +80,7 @@ const getRequiredDocumentsFromTax = (taxData: Partial<ITax>) => {
 
 const validateStepOneData = (taxData: StepOnePayload) => {
   if (!taxData) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tax step-1 data is required');
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax data is required');
   }
 
   const { personal_iformation, source_of_income, tax_year } = taxData;
@@ -235,7 +234,7 @@ const uploadTaxStepTwoDocumentsToDB = async (
     {
       documents: validDocumentIds,
       current_step: 2,
-      status: 'in_progress',
+      status: 'documents_uploaded',
     },
     { new: true },
   );
@@ -244,12 +243,16 @@ const uploadTaxStepTwoDocumentsToDB = async (
 };
 
 const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
-  const taxOrder = await assertTaxOrderOwnership(taxId, userId);
+  const taxOrder = await Tax.findById(taxId);
+
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
 
   if (!taxOrder.documents || taxOrder.documents.length === 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Please complete step-2 and upload required documents first',
+      'Please upload required documents first',
     );
   }
 
@@ -270,84 +273,23 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     );
   }
 
-  const feeAmount = Number(taxOrder.fee_amount || 0);
-
-  if (feeAmount <= 0) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Fee already paid for this order',
-    );
-  }
-
-  const tran_id = new Types.ObjectId().toString();
-  const customerName = taxOrder.personal_iformation?.name || 'Tax User';
-  const customerEmail =
-    taxOrder.personal_iformation?.email || 'noreply@example.com';
-  const customerPhone = taxOrder.personal_iformation?.phone || '0000000000';
-
-  const data = {
-    total_amount: feeAmount,
-    currency: 'BDT',
-    tran_id,
-    success_url: `${config.client_url}/success?tran_id=${tran_id}`,
-    fail_url: `${config.client_url}/fail?tran_id=${tran_id}`,
-    cancel_url: `${config.client_url}/cancel?tran_id=${tran_id}`,
-    ipn_url: `${config.client_url}/ipn?tran_id=${tran_id}`,
-    shipping_method: 'Online',
-    product_name: 'Tax Fee',
-    product_category: 'Service',
-    product_profile: 'general',
-    cus_name: customerName,
-    cus_email: customerEmail,
-    cus_add1: 'Dhaka',
-    cus_add2: 'Dhaka',
-    cus_city: 'Dhaka',
-    cus_state: 'Dhaka',
-    cus_postcode: '1000',
-    cus_country: 'Bangladesh',
-    cus_phone: customerPhone,
-    cus_fax: customerPhone,
-    ship_name: customerName,
-    ship_add1: 'Dhaka',
-    ship_add2: 'Dhaka',
-    ship_city: 'Dhaka',
-    ship_state: 'Dhaka',
-    ship_postcode: 1000,
-    ship_country: 'Bangladesh',
+  const paymentData: IPaymentDataForInit = {
+    orderId: taxId,
+    userId,
+    paymentFor: 'fee_amount',
   };
 
-  const sslResponse = await sslcz.init(data);
+  const { gatewayPageURL } = await paymentService.inintPaymentToDb(paymentData);
 
-  if (!sslResponse?.GatewayPageURL) {
+  if (!gatewayPageURL) {
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Failed to initialize SSLCommerz payment',
     );
   }
 
-  await Payment.create({
-    userId: taxOrder.userId,
-    orderId: taxOrder._id,
-    amount: feeAmount,
-    currency: 'BDT',
-    status: 'pending',
-    transaction_id: tran_id,
-  });
-
-  const result = await Tax.findByIdAndUpdate(
-    taxId,
-    {
-      status: 'in_progress',
-      current_step: 2,
-    },
-    { new: true },
-  );
-
   return {
-    tax_order: result,
-    payable_amount: feeAmount,
-    gatewayPageURL: sslResponse.GatewayPageURL,
-    transaction_id: tran_id,
+    gatewayPageURL,
   };
 };
 
@@ -382,15 +324,14 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
-      tax_paid_amount: feeAmount,
-      fee_due_amount: 0,
-      tax_paid_date: new Date(),
       current_step: 3,
       status: 'order_placed',
+      total_amount: feeAmount,
+      total_paid_amount: feeAmount,
+      ...getPaymentsType(payment.paymentFor),
     },
     { new: true },
   );
-
   return {
     payment,
     tax_order: updatedOrder,
@@ -438,6 +379,34 @@ const getAllTaxOrdersFromDB = async () => {
   return orders;
 };
 
+const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
+  if (!taxId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Tax ID is required');
+  }
+
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  const result = await Tax.findByIdAndUpdate(
+    taxId,
+    {
+      ...taxData,
+      current_step: 3,
+      status: 'payment_pending',
+    },
+    { new: true },
+  );
+
+  const required_documents = getRequiredDocumentsFromTax(result as ITax);
+
+  return {
+    tax_order: result,
+    required_documents,
+  };
+};
+
 export const TaxService = {
   createTaxStepOneToDB,
   updateTaxStepOneToDB,
@@ -448,4 +417,5 @@ export const TaxService = {
   getTaxOrderByIdFromDB,
   getMyTaxOrdersFromDB,
   getAllTaxOrdersFromDB,
+  updateTaxOrderToDB,
 };

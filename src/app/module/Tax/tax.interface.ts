@@ -38,8 +38,6 @@ export interface IPersonalInformation {
 export interface ITax extends Document {
   _id: Types.ObjectId;
   userId: Schema.Types.ObjectId;
-  is_self: boolean;
-  for_other_person: boolean;
   personal_iformation: IPersonalInformation;
   status: TaxStatus;
   current_step: 1 | 2 | 3;
@@ -50,10 +48,15 @@ export interface ITax extends Document {
   tax_year: string;
   documents: Schema.Types.ObjectId[];
   tax_payable_amount: number;
+  is_tax_payable_amount_paid: boolean;
   tax_paid_amount: number;
   fee_amount: number;
+  is_fee_amount_paid: boolean;
   fee_due_amount: number;
+  is_fee_due_amount_paid: boolean;
   tax_paid_date?: Date;
+  total_amount: number;
+  total_paid_amount: number;
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -152,6 +152,18 @@ const getAllTaxOrders = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateTaxOrder = catchAsync(async (req: Request, res: Response) => {
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.updateTaxOrderToDB(taxId, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Tax order updated successfully',
+    data: result,
+  });
+});
+
 export const TaxController = {
   createTaxStepOne,
   updateTaxStepOne,
@@ -164,4 +176,5 @@ export const TaxController = {
   getSingleTaxOrder,
   getMyTaxOrders,
   getAllTaxOrders,
+  updateTaxOrder,
 };
