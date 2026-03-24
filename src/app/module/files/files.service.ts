@@ -4,6 +4,7 @@ import httpStatus from 'http-status';
 import { Ifile } from './files.interface';
 import { Files } from './files.model';
 import { User } from '../users/user.model';
+import { Types } from 'mongoose';
 
 const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   if (!file) {
@@ -52,9 +53,35 @@ const getSingleFile = async (id: string) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'File not found');
   }
 
-  const fileData = await Files.findById(id);
+  const fileData = await Files.aggregate([
+    {
+      $match: { _id: new Types.ObjectId(id) },
+    },
+    {
+      $lookup: {
+        from: 'taxes',
+        localField: 'orderId',
+        foreignField: '_id',
+        as: 'order',
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    {
+      $addFields: {
+        order: { $arrayElemAt: ['$order', 0] },
+        user: { $arrayElemAt: ['$user', 0] },
+      },
+    },
+  ]);
 
-  return fileData;
+  return fileData[0] || null;
 };
 
 const getUserFiles = async (userId: string) => {

@@ -352,12 +352,11 @@ const markTaxOrderPaymentFailedToDB = async (transactionId: string) => {
     payment.status = 'failed';
     await payment.save();
   }
-
   return payment;
 };
 
 const getTaxOrderByIdFromDB = async (taxId: string) => {
-  const taxOrder = await Tax.findById(taxId);
+  const taxOrder = await Tax.findById(taxId).populate('documents');
   if (!taxOrder) {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
