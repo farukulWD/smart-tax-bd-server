@@ -15,7 +15,7 @@ const createFile = catchAsync(async (req, res) => {
 
   const result = await FileServices.createFileToDB(file, {
     ...payload,
-    userId: user.userId,
+    userId: payload.userId || user.userId,
   });
 
   sendResponse(res, {
