@@ -48,6 +48,7 @@ const taxModel = new Schema<ITax>(
         'on_hold',
         'archived',
         'deleted',
+        'payment_pending',
       ],
       default: 'draft',
     },

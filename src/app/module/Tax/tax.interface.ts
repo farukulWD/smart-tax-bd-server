@@ -24,7 +24,8 @@ export type TaxStatus =
   | 'order_placed'
   | 'on_hold'
   | 'archived'
-  | 'deleted';
+  | 'deleted'
+  | 'payment_pending';
 
 export interface IPersonalInformation {
   name: string;
