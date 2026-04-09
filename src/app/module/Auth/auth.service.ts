@@ -14,7 +14,7 @@ const loginUser = async (payload: TLoginUser) => {
   if (!mobile && !email) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Mobile or Email is required for login'
+      'Mobile or Email is required for login',
     );
   }
 
@@ -58,7 +58,7 @@ const loginUser = async (payload: TLoginUser) => {
   const accessToken = createToken(
     jwtPayload,
     config.jwt_access_secret as string,
-    config.jwt_access_expires_in as string
+    config.jwt_access_expires_in as string,
   );
 
   await User.findByIdAndUpdate(user._id, { accessToken });
@@ -68,7 +68,7 @@ const loginUser = async (payload: TLoginUser) => {
   const refreshToken = createToken(
     jwtPayload,
     config.jwt_refresh_secret as string,
-    config.jwt_refresh_expires_in as string
+    config.jwt_refresh_expires_in as string,
   );
 
   return {
@@ -80,7 +80,7 @@ const loginUser = async (payload: TLoginUser) => {
 
 const changePassword = async (
   mobile: string,
-  payload: { oldPassword: string; newPassword: string }
+  payload: { oldPassword: string; newPassword: string },
 ) => {
   // checking if the user is exist
   const user = await User.userFind({ mobile: mobile });
@@ -106,7 +106,7 @@ const changePassword = async (
   //hash new password
   const newHashedPassword = await bcrypt.hash(
     payload.newPassword,
-    Number(config.bcrypt_salt_rounds)
+    Number(config.bcrypt_salt_rounds),
   );
 
   await User.findOneAndUpdate(
@@ -116,7 +116,7 @@ const changePassword = async (
     {
       password: newHashedPassword,
       passwordChangedAt: new Date(),
-    }
+    },
   );
 
   return null;
@@ -158,7 +158,7 @@ const refreshToken = async (token: string) => {
   const accessToken = createToken(
     jwtPayload,
     config.jwt_access_secret as string,
-    config.jwt_access_expires_in as string
+    config.jwt_access_expires_in as string,
   );
 
   return {
@@ -170,15 +170,15 @@ const forgetPassword = async (payload: TLoginUser) => {
   // checking if the user is exist
   const { mobile, email } = payload;
 
-  if (!email) {
+  if (!mobile) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Email is required for forget password'
+      'Mobile no is required for forget password',
     );
   }
 
   const user = await User.findOne({
-    email,
+    mobile,
   });
 
   if (!user) {
@@ -194,21 +194,7 @@ const forgetPassword = async (payload: TLoginUser) => {
   const resetToken = createToken(
     jwtPayload,
     config.jwt_access_secret as string,
-    '10m'
-  );
-
-  const resetUILink = `${config.reset_pass_ui_link}?id=${user._id}&token=${resetToken}`;
-
-  sendEmail(
-    user.email as string,
-    `
-    <div>
-    <p>Click the button below to reset your password</p>
-      <a href="${resetUILink}">
-        <button>Reset Password</button>
-      </a>
-    </div>
-    `
+    '10m',
   );
 };
 
@@ -219,7 +205,7 @@ const resetPassword = async (payload: {
   // checking if the user is exist
   const decoded = jwt.verify(
     payload.token,
-    config.jwt_access_secret as string
+    config.jwt_access_secret as string,
   ) as JwtPayload;
 
   const user = await User.findOne({ email: decoded.email });
@@ -244,7 +230,7 @@ const resetPassword = async (payload: {
   //hash new password
   const newHashedPassword = await bcrypt.hash(
     payload.newPassword,
-    Number(config.bcrypt_salt_rounds)
+    Number(config.bcrypt_salt_rounds),
   );
 
   await User.findOneAndUpdate(
@@ -254,7 +240,7 @@ const resetPassword = async (payload: {
     {
       password: newHashedPassword,
       passwordChangedAt: new Date(),
-    }
+    },
   );
 };
 
@@ -265,7 +251,7 @@ const logoutUser = async (email: string) => {
     },
     {
       accessToken: null,
-    }
+    },
   );
 };
 
