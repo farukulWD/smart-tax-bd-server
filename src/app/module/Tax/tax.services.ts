@@ -332,6 +332,7 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
     },
     { new: true },
   );
+
   return {
     payment,
     tax_order: updatedOrder,

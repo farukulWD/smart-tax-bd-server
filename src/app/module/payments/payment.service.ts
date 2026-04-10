@@ -2,12 +2,14 @@ import { Types } from 'mongoose';
 import AppError from '../../errors/AppError';
 import { Tax } from '../Tax/tax.model';
 import { TUser } from '../users/user.interface';
+import { User } from '../users/user.model';
 import httpStatus from 'http-status';
 import { Payment } from './payment.model';
 import { sslcz } from '../../utils/ssl';
 import config from '../../config';
 import { IPayment, IPaymentDataForInit } from './payment.interface';
 import { ITax } from '../Tax/tax.interface';
+import { sendSMS } from '../../utils/smsService';
 
 const clientUrl = config.client_url;
 
@@ -171,6 +173,28 @@ const success = async (tran_id: string) => {
     payment.status = 'completed';
     await payment.save();
   }
+
+  // Fire-and-forget SMS — do not await so SSLCommerz callback is not blocked
+  User.findById(payment.userId)
+    .select('mobile name')
+    .then((user) => {
+      if (!user?.mobile) return;
+      const labelMap: Record<string, string> = {
+        fee_amount: 'Service Fee',
+        fee_due_amount: 'Due Fee',
+        tax_payable_amount: 'Tax Payable Amount',
+        remaining_all_amount: 'All Remaining Amount',
+      };
+      const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
+      const message =
+        `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
+        `${label} has been successfully received. ` +
+        `Transaction ID: ${tran_id}. Thank you - Smart Tax BD`;
+      return sendSMS(user.mobile, message);
+    })
+    .catch(() => {
+      // SMS failure must never break the payment success flow
+    });
 
   return payment;
 };
