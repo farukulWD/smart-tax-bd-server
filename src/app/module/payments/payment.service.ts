@@ -172,29 +172,30 @@ const success = async (tran_id: string) => {
   ) {
     payment.status = 'completed';
     await payment.save();
-  }
 
-  // Fire-and-forget SMS — do not await so SSLCommerz callback is not blocked
-  User.findById(payment.userId)
-    .select('mobile name')
-    .then((user) => {
-      if (!user?.mobile) return;
-      const labelMap: Record<string, string> = {
-        fee_amount: 'Service Fee',
-        fee_due_amount: 'Due Fee',
-        tax_payable_amount: 'Tax Payable Amount',
-        remaining_all_amount: 'All Remaining Amount',
-      };
-      const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
-      const message =
-        `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
-        `${label} has been successfully received. ` +
-        `Transaction ID: ${tran_id}. Thank you - Smart Tax BD`;
-      return sendSMS(user.mobile, message);
-    })
-    .catch(() => {
-      // SMS failure must never break the payment success flow
-    });
+    // Fire-and-forget SMS — only on the first transition to 'completed'
+    // so duplicate callbacks never send a second message
+    User.findById(payment.userId)
+      .select('mobile name')
+      .then((user) => {
+        if (!user?.mobile) return;
+        const labelMap: Record<string, string> = {
+          fee_amount: 'Service Fee',
+          fee_due_amount: 'Due Fee',
+          tax_payable_amount: 'Tax Payable Amount',
+          remaining_all_amount: 'All Remaining Amount',
+        };
+        const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
+        const message =
+          `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
+          `${label} has been successfully received. ` +
+          `Transaction ID: ${tran_id}. Thank you - Smart Tax BD`;
+        return sendSMS(user.mobile, message);
+      })
+      .catch(() => {
+        // SMS failure must never break the payment success flow
+      });
+  }
 
   return payment;
 };

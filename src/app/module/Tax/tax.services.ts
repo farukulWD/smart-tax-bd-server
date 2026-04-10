@@ -8,6 +8,8 @@ import { Payment } from '../payments/payment.model';
 import { getPaymentsType } from './tax.constant';
 import { paymentService } from '../payments/payment.service';
 import { IPaymentDataForInit } from '../payments/payment.interface';
+import { User } from '../users/user.model';
+import { sendSMS } from '../../utils/smsService';
 
 type StepOnePayload = {
   personal_iformation: IPersonalInformation;
@@ -332,6 +334,27 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
     },
     { new: true },
   );
+  // Fire-and-forget SMS — do not await so the response is not blocked
+  User.findById(payment.userId)
+    .select('mobile name')
+    .then(user => {
+      if (!user?.mobile) return;
+      const labelMap: Record<string, string> = {
+        fee_amount: 'Service Fee',
+        fee_due_amount: 'Due Fee',
+        tax_payable_amount: 'Tax Payable Amount',
+        remaining_all_amount: 'All Remaining Amount',
+      };
+      const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
+      const message =
+        `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
+        `${label} has been successfully received. ` +
+        `Transaction ID: ${transactionId}. Thank you - Smart Tax BD`;
+      return sendSMS(user.mobile, message);
+    })
+    .catch(() => {
+      // SMS failure must never break the payment success flow
+    });
 
   return {
     payment,
