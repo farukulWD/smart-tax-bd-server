@@ -3,7 +3,7 @@ import httpStatus from 'http-status';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import config from '../../config';
 import AppError from '../../errors/AppError';
-import { sendEmail } from '../../utils/sendEmail';
+import { sendOTP, verifyOTP } from '../../utils/otpService';
 import { TLoginUser } from './auth.interface';
 import { createToken, verifyToken } from './auth.utils';
 import { User } from '../users/user.model';
@@ -166,81 +166,87 @@ const refreshToken = async (token: string) => {
   };
 };
 
-const forgetPassword = async (payload: TLoginUser) => {
-  // checking if the user is exist
-  const { mobile, email } = payload;
-
+// Step 1 — verify account exists then dispatch OTP via SMS
+const forgetPassword = async (mobile: string) => {
   if (!mobile) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Mobile no is required for forget password',
+      'Mobile number is required for forgot password',
     );
   }
 
-  const user = await User.findOne({
-    mobile,
-  });
+  const user = await User.findOne({ mobile });
 
   if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'This user is not found !');
+    throw new AppError(httpStatus.NOT_FOUND, 'No account found with this mobile number');
   }
 
-  const jwtPayload = {
-    userId: user._id,
-    role: user.role,
-    email: user.email,
-  };
+  if (user.status === 'inactive') {
+    throw new AppError(httpStatus.FORBIDDEN, 'This account is inactive');
+  }
+
+  await sendOTP(mobile);
+};
+
+// Step 2 — verify OTP; return a short-lived password-reset JWT on success
+const verifyForgotPasswordOTP = async (mobile: string, otp: string) => {
+  if (!mobile || !otp) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Mobile and OTP are required');
+  }
+
+  const user = await User.findOne({ mobile });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'No account found with this mobile number');
+  }
+
+  // throws AppError on wrong / expired OTP; deletes entry on success (one-time use)
+  await verifyOTP(mobile, otp);
 
   const resetToken = createToken(
-    jwtPayload,
+    { userId: user._id, mobile, role: user.role },
     config.jwt_access_secret as string,
     '10m',
   );
+
+  return { resetToken };
 };
 
-const resetPassword = async (payload: {
-  newPassword: string;
-  token: string;
-}) => {
-  // checking if the user is exist
-  const decoded = jwt.verify(
-    payload.token,
-    config.jwt_access_secret as string,
-  ) as JwtPayload;
+// Step 3 — set new password using the short-lived reset token
+const resetPassword = async (payload: { resetToken: string; newPassword: string }) => {
+  let decoded: JwtPayload;
 
-  const user = await User.findOne({ email: decoded.email });
+  try {
+    decoded = jwt.verify(
+      payload.resetToken,
+      config.jwt_access_secret as string,
+    ) as JwtPayload;
+  } catch {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'Reset token is invalid or has expired');
+  }
+
+  const user = await User.findOne({ mobile: decoded.mobile });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'This user is not found !');
   }
-  // checking if the user is already deleted
-  const isDeleted = user?.isDeleted;
 
-  if (isDeleted) {
+  if (user.isDeleted) {
     throw new AppError(httpStatus.FORBIDDEN, 'This user is deleted !');
   }
 
-  // checking if the user is blocked
-  const userStatus = user?.status;
-
-  if (userStatus === 'inactive') {
-    throw new AppError(httpStatus.FORBIDDEN, 'This user is inactive ! !');
+  if (user.status === 'inactive') {
+    throw new AppError(httpStatus.FORBIDDEN, 'This user is inactive !');
   }
 
-  //hash new password
   const newHashedPassword = await bcrypt.hash(
     payload.newPassword,
     Number(config.bcrypt_salt_rounds),
   );
 
   await User.findOneAndUpdate(
-    {
-      email: decoded.email,
-    },
-    {
-      password: newHashedPassword,
-      passwordChangedAt: new Date(),
-    },
+    { mobile: decoded.mobile },
+    { password: newHashedPassword, passwordChangedAt: new Date() },
   );
 };
 
@@ -260,6 +266,7 @@ export const AuthServices = {
   changePassword,
   refreshToken,
   forgetPassword,
+  verifyForgotPasswordOTP,
   resetPassword,
   logoutUser,
 };

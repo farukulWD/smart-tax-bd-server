@@ -1,6 +1,5 @@
 import httpStatus from 'http-status';
 import config from '../../config';
-import AppError from '../../errors/AppError';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { AuthServices } from './auth.service';
@@ -59,23 +58,33 @@ const refreshToken = catchAsync(async (req, res) => {
 });
 
 const forgetPassword = catchAsync(async (req, res) => {
-  const mobile = req.body.mobile;
-  const result = await AuthServices.forgetPassword(mobile);
+  await AuthServices.forgetPassword(req.body.mobile);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Please check your email for reset password link!',
+    message: 'OTP sent to your mobile number',
+    data: null,
+  });
+});
+
+const verifyForgotPasswordOTP = catchAsync(async (req, res) => {
+  const { mobile, otp } = req.body;
+  const result = await AuthServices.verifyForgotPasswordOTP(mobile, otp);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'OTP verified. Use the reset token to set a new password.',
     data: result,
   });
 });
 
 const resetPassword = catchAsync(async (req, res) => {
-  const result = await AuthServices.resetPassword(req.body);
+  await AuthServices.resetPassword(req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Password reset successfully!',
-    data: result,
+    data: null,
   });
 });
 
@@ -99,6 +108,7 @@ export const AuthControllers = {
   changePassword,
   refreshToken,
   forgetPassword,
+  verifyForgotPasswordOTP,
   resetPassword,
   logoutUser,
 };

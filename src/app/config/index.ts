@@ -29,4 +29,9 @@ export default {
   store_password: process.env.STORE_PASSWORD,
   is_live: process.env.IS_LIVE === 'true',
   payment_base_url: process.env.PAYMENT_BASE_URL,
+
+  // sms
+  sms_user_name: process.env.SMS_API_USERNAME,
+  sms_api_key: process.env.SMS_API_KEY,
+  sms_api_end_points: process.env.SMS_API_END_POINT,
 };

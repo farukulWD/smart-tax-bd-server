@@ -27,27 +27,21 @@ const refreshTokenValidationSchema = z.object({
 
 const forgetPasswordValidationSchema = z.object({
   body: z.object({
-    mobile: z
-      .string({
-        required_error: 'User mobile is required!',
-      })
-      .optional(),
-    email: z
-      .string({
-        required_error: 'User email is required!',
-      })
-      .optional(),
+    mobile: z.string({ required_error: 'Mobile number is required!' }),
+  }),
+});
+
+const verifyForgotOTPValidationSchema = z.object({
+  body: z.object({
+    mobile: z.string({ required_error: 'Mobile number is required!' }),
+    otp: z.string({ required_error: 'OTP is required!' }),
   }),
 });
 
 const resetPasswordValidationSchema = z.object({
   body: z.object({
-    id: z.string({
-      required_error: 'User id is required!',
-    }),
-    newPassword: z.string({
-      required_error: 'User password is required!',
-    }),
+    resetToken: z.string({ required_error: 'Reset token is required!' }),
+    newPassword: z.string({ required_error: 'New password is required!' }),
   }),
 });
 
@@ -56,5 +50,6 @@ export const AuthValidation = {
   changePasswordValidationSchema,
   refreshTokenValidationSchema,
   forgetPasswordValidationSchema,
+  verifyForgotOTPValidationSchema,
   resetPasswordValidationSchema,
 };

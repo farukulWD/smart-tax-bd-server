@@ -4,10 +4,14 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { TUser } from './user.interface';
 import config from '../../config';
+import { sendSMS } from '../../utils/smsService';
 
 const createUserIntoDb = async (payload: TUser) => {
   try {
-    const existingUser = await User.findOne({ mobile: payload.mobile, email: payload.email });
+    const existingUser = await User.findOne({
+      mobile: payload.mobile,
+      email: payload.email,
+    });
 
     if (existingUser) {
       throw new AppError(httpStatus.BAD_REQUEST, 'The user already created');
@@ -17,6 +21,13 @@ const createUserIntoDb = async (payload: TUser) => {
 
     payload.role = 'user';
     const newUser = await User.create(payload);
+
+    // fire-and-forget — SMS failure must not block account creation
+    sendSMS(
+      newUser.mobile,
+      `Welcome to Smart Tax BD, ${newUser.name}! Your account has been created successfully. We are happy to have you on board.`,
+    ).catch(err => console.log(err));
+
     return newUser;
   } catch (err: any) {
     throw new Error(err);
@@ -44,7 +55,7 @@ const getUsers = async () => {
 const getMe = async (token: string) => {
   const decoded = jwt.verify(
     token,
-    config.jwt_access_secret as string
+    config.jwt_access_secret as string,
   ) as JwtPayload;
 
   const res = await User.findById({ _id: decoded?.userId });

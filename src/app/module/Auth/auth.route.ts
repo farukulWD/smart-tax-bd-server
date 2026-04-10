@@ -1,7 +1,7 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
-
+import { otpSendLimiter, otpVerifyLimiter } from '../../middlewares/rateLimiter';
 import { AuthControllers } from './auth.controller';
 import { AuthValidation } from './auth.validation';
 import { USER_ROLE } from '../users/user.constant';
@@ -11,7 +11,7 @@ const router = express.Router();
 router.post(
   '/login',
   validateRequest(AuthValidation.loginValidationSchema),
-  AuthControllers.loginUser
+  AuthControllers.loginUser,
 );
 
 router.post(
@@ -34,11 +34,23 @@ router.post(
 
 router.post(
   '/forget-password',
+  otpSendLimiter,
   validateRequest(AuthValidation.forgetPasswordValidationSchema),
-  AuthControllers.forgetPassword
+  AuthControllers.forgetPassword,
 );
 
-router.post('/reset-password', AuthControllers.resetPassword);
+router.post(
+  '/verify-forgot-otp',
+  otpVerifyLimiter,
+  validateRequest(AuthValidation.verifyForgotOTPValidationSchema),
+  AuthControllers.verifyForgotPasswordOTP,
+);
+
+router.post(
+  '/reset-password',
+  validateRequest(AuthValidation.resetPasswordValidationSchema),
+  AuthControllers.resetPassword,
+);
 
 router.post(
   '/logout',
