@@ -186,10 +186,7 @@ const success = async (tran_id: string) => {
           remaining_all_amount: 'All Remaining Amount',
         };
         const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
-        const message =
-          `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
-          `${label} has been successfully received. ` +
-          `Transaction ID: ${tran_id}. Thank you - Smart Tax BD`;
+        const message = `Dear ${user.name}, BDT ${payment.amount} for ${label} received. Txn: ${tran_id} -Smart Tax BD`;
         return sendSMS(user.mobile, message);
       })
       .catch(() => {

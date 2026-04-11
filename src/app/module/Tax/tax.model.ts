@@ -10,7 +10,7 @@ const taxModel = new Schema<ITax>(
       required: true,
       ref: 'User',
     },
-    personal_iformation: {
+    personal_information: {
       name: {
         type: String,
         required: true,

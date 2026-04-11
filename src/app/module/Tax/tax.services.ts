@@ -12,7 +12,7 @@ import { User } from '../users/user.model';
 import { sendSMS } from '../../utils/smsService';
 
 type StepOnePayload = {
-  personal_iformation: IPersonalInformation;
+  personal_information: IPersonalInformation;
   tax_year: string;
   source_of_income: IncomeSource[];
   income_from_ldt_company?: boolean;
@@ -85,10 +85,10 @@ const validateStepOneData = (taxData: StepOnePayload) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax data is required');
   }
 
-  const { personal_iformation, source_of_income, tax_year } = taxData;
-  const { name, email, phone } = personal_iformation || {};
+  const { personal_information, source_of_income, tax_year } = taxData;
+  const { name, email, phone } = personal_information || {};
 
-  if (!personal_iformation) {
+  if (!personal_information) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Personal information is required',
@@ -346,10 +346,7 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
         remaining_all_amount: 'All Remaining Amount',
       };
       const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
-      const message =
-        `Dear ${user.name}, your payment of BDT ${payment.amount} for ` +
-        `${label} has been successfully received. ` +
-        `Transaction ID: ${transactionId}. Thank you - Smart Tax BD`;
+      const message = `Dear ${user.name}, BDT ${payment.amount} for ${label} received. Txn: ${transactionId} -Smart Tax BD`;
       return sendSMS(user.mobile, message);
     })
     .catch(() => {
