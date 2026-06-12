@@ -6,6 +6,7 @@ import { TaxTypesRoute } from '../module/taxTypes/tax.types.route';
 import { FileRoute } from '../module/files/file.route';
 import { paymentRoutes } from '../module/payments/payment.route';
 import { UpdateNewsRoute } from '../module/updateNews/updateNews.route';
+import { notificationRoutes } from '../module/notifications/notification.route';
 
 const router = Router();
 
@@ -37,6 +38,10 @@ const moduleRoutes = [
   {
     path: '/update-news',
     route: UpdateNewsRoute,
+  },
+  {
+    path: '/notifications',
+    route: notificationRoutes,
   },
 ];
 

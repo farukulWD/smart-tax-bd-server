@@ -5,6 +5,8 @@ import httpStatus from 'http-status';
 import { TUser } from './user.interface';
 import config from '../../config';
 import { sendSMS } from '../../utils/smsService';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 const createUserIntoDb = async (payload: TUser) => {
   try {
@@ -27,6 +29,16 @@ const createUserIntoDb = async (payload: TUser) => {
       newUser.mobile,
       `Welcome to Smart Tax BD, ${newUser.name}! Your account has been created successfully. We are happy to have you on board.`,
     ).catch(err => console.log(err));
+
+    notificationService
+      .sendNotification({
+        recipientId: (newUser._id as string).toString(),
+        type: NOTIFICATION_TYPE.USER_REGISTERED,
+        title: 'Welcome to Smart Tax BD!',
+        message: `Hi ${newUser.name}, your account has been created successfully.`,
+        data: { userId: newUser._id },
+      })
+      .catch(() => {});
 
     return newUser;
   } catch (err: any) {

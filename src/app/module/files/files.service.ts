@@ -5,6 +5,8 @@ import { Ifile } from './files.interface';
 import { Files } from './files.model';
 import { User } from '../users/user.model';
 import { Types } from 'mongoose';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   if (!file) {
@@ -29,6 +31,16 @@ const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
 
   const fileData = await Files.create({ ...payload, file: secure_url });
 
+  notificationService
+    .sendNotification({
+      recipientId: payload.userId.toString(),
+      type: NOTIFICATION_TYPE.FILE_UPLOADED,
+      title: 'Document Uploaded',
+      message: `Your document "${payload.type}" has been uploaded successfully.`,
+      data: { fileId: fileData._id, orderId: payload.orderId, type: payload.type },
+    })
+    .catch(() => {});
+
   return fileData;
 };
 
@@ -38,6 +50,18 @@ const deleteFileFromDB = async (id: string) => {
   }
 
   const fileData = await Files.findByIdAndDelete(id);
+
+  if (fileData) {
+    notificationService
+      .sendNotification({
+        recipientId: fileData.userId.toString(),
+        type: NOTIFICATION_TYPE.FILE_DELETED,
+        title: 'Document Deleted',
+        message: `Your document "${fileData.type}" has been deleted.`,
+        data: { fileId: fileData._id, type: fileData.type },
+      })
+      .catch(() => {});
+  }
 
   return fileData;
 };
