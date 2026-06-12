@@ -1,4 +1,4 @@
-import { Schema } from 'mongoose';
+import { Schema, Types } from 'mongoose';
 import { TNotificationType } from './notification.constant';
 
 export interface INotification {
@@ -7,7 +7,8 @@ export interface INotification {
   title: string;
   message: string;
   data?: Record<string, unknown>;
-  isRead: boolean;
+  isRead: boolean;       // admin read state
+  readBy: Types.ObjectId[]; // per-user read tracking
   isGlobal: boolean;
 }
 

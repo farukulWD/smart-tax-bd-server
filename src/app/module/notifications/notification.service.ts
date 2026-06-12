@@ -1,4 +1,5 @@
 import httpStatus from 'http-status';
+import { Types } from 'mongoose';
 import AppError from '../../errors/AppError';
 import { emitNotification } from '../../utils/socket';
 import { INotification, ISendNotificationParams } from './notification.interface';
@@ -31,13 +32,17 @@ const getMyNotifications = async (
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 20;
   const skip = (page - 1) * limit;
+  const userObjectId = new Types.ObjectId(userId);
 
   const filter: Record<string, unknown> = {
     $or: [{ recipientId: userId }, { isGlobal: true }],
   };
 
   if (query.isRead !== undefined) {
-    filter.isRead = query.isRead === 'true';
+    const isRead = query.isRead === 'true';
+    filter.readBy = isRead
+      ? userObjectId
+      : { $ne: userObjectId };
   }
 
   const [notifications, total] = await Promise.all([
@@ -46,7 +51,10 @@ const getMyNotifications = async (
   ]);
 
   return {
-    notifications,
+    notifications: notifications.map((n) => ({
+      ...n.toObject(),
+      isRead: n.readBy.some((id) => id.equals(userObjectId)),
+    })),
     meta: {
       total,
       page,
@@ -71,21 +79,38 @@ const markAsRead = async (notificationId: string, userId: string) => {
     throw new AppError(httpStatus.FORBIDDEN, 'Access denied');
   }
 
-  notification.isRead = true;
-  await notification.save();
+  await Notification.findByIdAndUpdate(notificationId, {
+    $addToSet: { readBy: new Types.ObjectId(userId) },
+  });
 
   return notification;
 };
 
 const markAllAsRead = async (userId: string) => {
   await Notification.updateMany(
-    {
-      $or: [{ recipientId: userId }, { isGlobal: true }],
-      isRead: false,
-    },
-    { isRead: true },
+    { $or: [{ recipientId: userId }, { isGlobal: true }] },
+    { $addToSet: { readBy: new Types.ObjectId(userId) } },
   );
 
+  return null;
+};
+
+const adminMarkAsRead = async (notificationId: string) => {
+  const notification = await Notification.findByIdAndUpdate(
+    notificationId,
+    { isRead: true },
+    { new: true },
+  );
+
+  if (!notification) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Notification not found');
+  }
+
+  return notification;
+};
+
+const adminMarkAllAsRead = async () => {
+  await Notification.updateMany({ isRead: false }, { isRead: true });
   return null;
 };
 
@@ -105,6 +130,16 @@ const deleteNotification = async (notificationId: string, userId: string) => {
   }
 
   await Notification.findByIdAndDelete(notificationId);
+
+  return null;
+};
+
+const adminDeleteNotification = async (notificationId: string) => {
+  const notification = await Notification.findByIdAndDelete(notificationId);
+
+  if (!notification) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Notification not found');
+  }
 
   return null;
 };
@@ -142,11 +177,17 @@ const getAllNotifications = async (query: {
 };
 
 const getUnreadCount = async (userId: string) => {
+  const userObjectId = new Types.ObjectId(userId);
   const count = await Notification.countDocuments({
     $or: [{ recipientId: userId }, { isGlobal: true }],
-    isRead: false,
+    readBy: { $ne: userObjectId },
   });
 
+  return { count };
+};
+
+const getAllUnreadCount = async () => {
+  const count = await Notification.countDocuments({ isRead: false });
   return { count };
 };
 
@@ -155,7 +196,11 @@ export const notificationService = {
   getMyNotifications,
   markAsRead,
   markAllAsRead,
+  adminMarkAsRead,
+  adminMarkAllAsRead,
   deleteNotification,
+  adminDeleteNotification,
   getAllNotifications,
   getUnreadCount,
+  getAllUnreadCount,
 };
