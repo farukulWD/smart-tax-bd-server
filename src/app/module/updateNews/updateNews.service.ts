@@ -3,6 +3,8 @@ import AppError from '../../errors/AppError';
 import { IUpdateNews } from './updateNews.interface';
 import { UpdateNews } from './updateNews.model';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 const createNewsToDB = async (
   payload: Partial<IUpdateNews>,
@@ -18,6 +20,19 @@ const createNewsToDB = async (
   }
 
   const result = await UpdateNews.create(payload);
+
+  if (result.isActive) {
+    notificationService
+      .sendNotification({
+        recipientId: null,
+        type: NOTIFICATION_TYPE.NEWS_PUBLISHED,
+        title: 'New Update',
+        message: result.title || 'A new update has been published.',
+        data: { newsId: result._id },
+      })
+      .catch(() => {});
+  }
+
   return result;
 };
 
@@ -61,6 +76,19 @@ const updateNewsInDB = async (
   }
 
   const result = await UpdateNews.findByIdAndUpdate(id, payload, { new: true });
+
+  if (result?.isActive) {
+    notificationService
+      .sendNotification({
+        recipientId: null,
+        type: NOTIFICATION_TYPE.NEWS_UPDATED,
+        title: 'Update Published',
+        message: result.title || 'An update has been published.',
+        data: { newsId: result._id },
+      })
+      .catch(() => {});
+  }
+
   return result;
 };
 

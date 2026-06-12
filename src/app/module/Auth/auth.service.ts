@@ -7,6 +7,8 @@ import { sendOTP, verifyOTP } from '../../utils/otpService';
 import { TLoginUser } from './auth.interface';
 import { createToken, verifyToken } from './auth.utils';
 import { User } from '../users/user.model';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 const loginUser = async (payload: TLoginUser) => {
   const { mobile, email } = payload;
@@ -109,7 +111,7 @@ const changePassword = async (
     Number(config.bcrypt_salt_rounds),
   );
 
-  await User.findOneAndUpdate(
+  const updatedUser = await User.findOneAndUpdate(
     {
       mobile: mobile,
     },
@@ -118,6 +120,18 @@ const changePassword = async (
       passwordChangedAt: new Date(),
     },
   );
+
+  if (updatedUser) {
+    notificationService
+      .sendNotification({
+        recipientId: (updatedUser._id as string).toString(),
+        type: NOTIFICATION_TYPE.PASSWORD_CHANGED,
+        title: 'Password Changed',
+        message: 'Your password has been changed successfully.',
+        data: { userId: updatedUser._id },
+      })
+      .catch(() => {});
+  }
 
   return null;
 };
@@ -244,10 +258,22 @@ const resetPassword = async (payload: { resetToken: string; newPassword: string 
     Number(config.bcrypt_salt_rounds),
   );
 
-  await User.findOneAndUpdate(
+  const resetUser = await User.findOneAndUpdate(
     { mobile: decoded.mobile },
     { password: newHashedPassword, passwordChangedAt: new Date() },
   );
+
+  if (resetUser) {
+    notificationService
+      .sendNotification({
+        recipientId: (resetUser._id as string).toString(),
+        type: NOTIFICATION_TYPE.PASSWORD_RESET,
+        title: 'Password Reset',
+        message: 'Your password has been reset successfully.',
+        data: { userId: resetUser._id },
+      })
+      .catch(() => {});
+  }
 };
 
 const logoutUser = async (email: string) => {

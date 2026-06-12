@@ -10,6 +10,8 @@ import config from '../../config';
 import { IPayment, IPaymentDataForInit } from './payment.interface';
 import { ITax } from '../Tax/tax.interface';
 import { sendSMS } from '../../utils/smsService';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 const clientUrl = config.client_url;
 
@@ -120,6 +122,16 @@ const inintPaymentToDb = async (paymentData: IPaymentDataForInit) => {
     transaction_id: tran_id,
   });
 
+  notificationService
+    .sendNotification({
+      recipientId: (user._id as string).toString(),
+      type: NOTIFICATION_TYPE.PAYMENT_INITIATED,
+      title: 'Payment Initiated',
+      message: `Payment of BDT ${payableAmount} has been initiated.`,
+      data: { orderId: orderData._id, amount: payableAmount, transactionId: tran_id },
+    })
+    .catch(() => {});
+
   return {
     gatewayPageURL: sslResponse?.GatewayPageURL,
   };
@@ -192,6 +204,16 @@ const success = async (tran_id: string) => {
       .catch(() => {
         // SMS failure must never break the payment success flow
       });
+
+    notificationService
+      .sendNotification({
+        recipientId: payment.userId.toString(),
+        type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+        title: 'Payment Successful',
+        message: `BDT ${payment.amount} received successfully. Transaction: ${tran_id}.`,
+        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+      })
+      .catch(() => {});
   }
 
   return payment;
@@ -210,6 +232,16 @@ const fail = async (tran_id: string) => {
   if (payment) {
     payment.status = 'failed';
     await payment.save();
+
+    notificationService
+      .sendNotification({
+        recipientId: payment.userId.toString(),
+        type: NOTIFICATION_TYPE.PAYMENT_FAILED,
+        title: 'Payment Failed',
+        message: `Your payment of BDT ${payment.amount} has failed. Please try again.`,
+        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+      })
+      .catch(() => {});
   }
 
   return payment;
@@ -228,6 +260,16 @@ const cancel = async (tran_id: string) => {
   if (payment) {
     payment.status = 'cancelled';
     await payment.save();
+
+    notificationService
+      .sendNotification({
+        recipientId: payment.userId.toString(),
+        type: NOTIFICATION_TYPE.PAYMENT_CANCELLED,
+        title: 'Payment Cancelled',
+        message: `Your payment of BDT ${payment.amount} has been cancelled.`,
+        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+      })
+      .catch(() => {});
   }
 
   return payment;

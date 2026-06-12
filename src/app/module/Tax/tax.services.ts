@@ -10,6 +10,8 @@ import { paymentService } from '../payments/payment.service';
 import { IPaymentDataForInit } from '../payments/payment.interface';
 import { User } from '../users/user.model';
 import { sendSMS } from '../../utils/smsService';
+import { notificationService } from '../notifications/notification.service';
+import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -151,6 +153,16 @@ const createTaxStepOneToDB = async (
   const result = await Tax.create(payload);
   const required_documents = getRequiredDocumentsFromTax(result);
 
+  notificationService
+    .sendNotification({
+      recipientId: userId,
+      type: NOTIFICATION_TYPE.TAX_ORDER_CREATED,
+      title: 'Tax Order Created',
+      message: `Your tax order for ${result.tax_year} has been created successfully.`,
+      data: { orderId: result._id, taxYear: result.tax_year },
+    })
+    .catch(() => {});
+
   return {
     tax_order: result,
     required_documents,
@@ -240,6 +252,16 @@ const uploadTaxStepTwoDocumentsToDB = async (
     },
     { new: true },
   );
+
+  notificationService
+    .sendNotification({
+      recipientId: userId,
+      type: NOTIFICATION_TYPE.DOCUMENTS_UPLOADED,
+      title: 'Documents Uploaded',
+      message: 'Your tax documents have been uploaded successfully.',
+      data: { orderId: taxId },
+    })
+    .catch(() => {});
 
   return result;
 };
@@ -353,6 +375,16 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
       // SMS failure must never break the payment success flow
     });
 
+  notificationService
+    .sendNotification({
+      recipientId: payment.userId.toString(),
+      type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
+      title: 'Tax Order Placed',
+      message: `Your tax order has been placed successfully. Transaction: ${transactionId}.`,
+      data: { orderId: taxOrder._id, transactionId, amount: payment.amount },
+    })
+    .catch(() => {});
+
   return {
     payment,
     tax_order: updatedOrder,
@@ -455,6 +487,23 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
   );
 
   const required_documents = getRequiredDocumentsFromTax(result as ITax);
+
+  if (result) {
+    notificationService
+      .sendNotification({
+        recipientId: result.userId.toString(),
+        type: NOTIFICATION_TYPE.TAX_AMOUNTS_UPDATED,
+        title: 'Payment Required',
+        message: 'Your tax order amounts have been updated. Please proceed with payment.',
+        data: {
+          orderId: taxId,
+          feeDueAmount: result.fee_due_amount,
+          taxPayableAmount: result.tax_payable_amount,
+          totalAmount: result.total_amount,
+        },
+      })
+      .catch(() => {});
+  }
 
   return {
     tax_order: result,
