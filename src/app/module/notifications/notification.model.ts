@@ -18,6 +18,7 @@ const notificationSchema = new Schema<INotification>(
     message: { type: String, required: true },
     data: { type: Schema.Types.Mixed, default: {} },
     isRead: { type: Boolean, default: false },
+    readBy: [{ type: Schema.Types.ObjectId, ref: 'User', default: [] }],
     isGlobal: { type: Boolean, default: false },
   },
   { timestamps: true },
