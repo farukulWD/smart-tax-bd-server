@@ -2,26 +2,22 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-RUN npm install -g pnpm
-
 # Copy manifest + lockfile first to leverage Docker cache
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # Copy the rest of the app and build
 COPY . .
-RUN pnpm run build
+RUN npm run build
 
 # Stage 2: Run
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN npm install -g pnpm
-
 # Install production dependencies only
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 # Copy the build output from the build stage
 COPY --from=build /app/dist ./dist
