@@ -1,0 +1,108 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, release]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ github.ref == 'refs/heads/release' && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve environment name
+        id: env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/release" ]; then
+            echo "NAME=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "NAME=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/smart-tax-bd-server:${{ steps.env.outputs.NAME }}
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/smart-tax-bd-server:${{ steps.env.outputs.NAME }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          JWT_ACCESS_EXPIRES_IN: ${{ vars.JWT_ACCESS_EXPIRES_IN }}
+          JWT_REFRESH_EXPIRES_IN: ${{ vars.JWT_REFRESH_EXPIRES_IN }}
+          SALT: ${{ secrets.SALT }}
+          PORT: ${{ vars.PORT }}
+          NODE_ENV: ${{ vars.NODE_ENV }}
+          CLIENT_URL: ${{ vars.CLIENT_URL }}
+          RESET_UI_LINK: ${{ vars.RESET_UI_LINK }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          CLOUDINARY_CLOUD_NAME: ${{ vars.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          STORE_ID: ${{ secrets.STORE_ID }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          IS_LIVE: ${{ vars.IS_LIVE }}
+          PAYMENT_BASE_URL: ${{ vars.PAYMENT_BASE_URL }}
+          SMS_API_USERNAME: ${{ vars.SMS_API_USERNAME }}
+          SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
+          SMS_API_END_POINT: ${{ vars.SMS_API_END_POINT }}
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          port: ${{ vars.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE,DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,RABBITMQ_USER,RABBITMQ_PASS,DATABASE_URL,JWT_ACCESS_SECRET,JWT_REFRESH_SECRET,JWT_ACCESS_EXPIRES_IN,JWT_REFRESH_EXPIRES_IN,SALT,PORT,NODE_ENV,CLIENT_URL,RESET_UI_LINK,EMAIL_USER,EMAIL_PASS,CLOUDINARY_CLOUD_NAME,CLOUDINARY_API_KEY,CLOUDINARY_API_SECRET,STORE_ID,STORE_PASSWORD,IS_LIVE,PAYMENT_BASE_URL,SMS_API_USERNAME,SMS_API_KEY,SMS_API_END_POINT
+          script: |
+            set -e
+            mkdir -p /opt/smart-tax-bd/${{ steps.env.outputs.NAME }}/server
+            cd /opt/smart-tax-bd/${{ steps.env.outputs.NAME }}/server
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            cat > .env <<EOF
+            IMAGE=$IMAGE
+            NODE_ENV=$NODE_ENV
+            PORT=$PORT
+            DATABASE_URL=$DATABASE_URL
+            RABBITMQ_USER=$RABBITMQ_USER
+            RABBITMQ_PASS=$RABBITMQ_PASS
+            JWT_ACCESS_SECRET=$JWT_ACCESS_SECRET
+            JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
+            JWT_ACCESS_EXPIRES_IN=$JWT_ACCESS_EXPIRES_IN
+            JWT_REFRESH_EXPIRES_IN=$JWT_REFRESH_EXPIRES_IN
+            SALT=$SALT
+            CLIENT_URL=$CLIENT_URL
+            RESET_UI_LINK=$RESET_UI_LINK
+            EMAIL_USER=$EMAIL_USER
+            EMAIL_PASS=$EMAIL_PASS
+            CLOUDINARY_CLOUD_NAME=$CLOUDINARY_CLOUD_NAME
+            CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY
+            CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET
+            STORE_ID=$STORE_ID
+            STORE_PASSWORD=$STORE_PASSWORD
+            IS_LIVE=$IS_LIVE
+            PAYMENT_BASE_URL=$PAYMENT_BASE_URL
+            SMS_API_USERNAME=$SMS_API_USERNAME
+            SMS_API_KEY=$SMS_API_KEY
+            SMS_API_END_POINT=$SMS_API_END_POINT
+            EOF
+            docker compose pull
+            docker compose up -d
+            docker image prune -f

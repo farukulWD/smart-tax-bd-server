@@ -1,5 +1,16 @@
 node_modules
+npm-debug.log
 dist
+build
+.git
+.gitignore
+.env
+.env.*
+*.md
+.vscode
+.idea
+coverage
+.DS_Store
 Dockerfile
 .dockerignore
-.git
+docker-compose*.yml
