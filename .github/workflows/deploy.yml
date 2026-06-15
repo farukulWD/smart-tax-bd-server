@@ -102,7 +102,7 @@ jobs:
                 restart: unless-stopped
                 env_file: .env
                 ports:
-                  - '5000:5000'
+                  - '${PORT}:${PORT}'
                 volumes:
                   - uploads:/app/uploads
                 networks: [app-net]
