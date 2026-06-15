@@ -95,6 +95,22 @@ jobs:
             SMS_API_KEY=$SMS_API_KEY
             SMS_API_END_POINT=$SMS_API_END_POINT
             EOF
+            cat > docker-compose.yml <<'COMPOSE'
+            services:
+              app:
+                image: ${IMAGE}
+                restart: unless-stopped
+                env_file: .env
+                ports:
+                  - '5000:5000'
+                volumes:
+                  - uploads:/app/uploads
+                networks: [app-net]
+            volumes:
+              uploads:
+            networks:
+              app-net:
+            COMPOSE
             docker compose pull
             docker compose up -d
             docker image prune -f
