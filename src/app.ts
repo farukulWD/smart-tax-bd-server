@@ -26,6 +26,10 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
+app.get('/', (_req, res) => {
+  res.json({ message: 'Welcome to Smart Tax BD API' });
+});
+
 app.use('/api/v1', router);
 
 app.use(globalErrorHandler);
