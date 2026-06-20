@@ -9,7 +9,12 @@ import httpStatus from 'http-status';
 
 const app: Application = express();
 
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://smart-tax-bd-client.vercel.app',
+  'http://staging.smarttaxbd.com',
+];
 app.use(
   cors({
     origin: (origin, callback) => {
