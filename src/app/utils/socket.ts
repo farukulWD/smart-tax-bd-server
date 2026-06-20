@@ -38,6 +38,11 @@ const initializeSocketIO = (server: HttpServer): SocketIOServer => {
     if (userId) {
       socket.join(userId);
       console.log(`⚡ User ${userId} joined room: ${userId}`);
+
+      if (user.role === 'admin' || user.role === 'superAdmin') {
+        socket.join('admins');
+        console.log(`⚡ Admin ${userId} joined admins room`);
+      }
     }
 
     console.log('⚡ A user connected:', socket.id);
@@ -78,4 +83,12 @@ const emitNotification = (target: string | null, key: string, payload: any) => {
   }
 };
 
-export { initializeSocketIO, getIO, emitNotification };
+const emitToAdmins = (key: string, payload: any) => {
+  getIO().to('admins').emit('notification', {
+    key,
+    payload,
+    timestamp: new Date(),
+  });
+};
+
+export { initializeSocketIO, getIO, emitNotification, emitToAdmins };
