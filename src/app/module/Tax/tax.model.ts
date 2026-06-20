@@ -17,7 +17,7 @@ const taxModel = new Schema<ITax>(
       },
       email: {
         type: String,
-        required: true,
+        required: false,
       },
       phone: {
         type: String,

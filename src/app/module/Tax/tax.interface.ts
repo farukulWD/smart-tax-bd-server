@@ -29,7 +29,7 @@ export type TaxStatus =
 
 export interface IPersonalInformation {
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   are_you_student: boolean;
   are_you_house_wife: boolean;
