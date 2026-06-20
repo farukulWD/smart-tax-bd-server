@@ -340,17 +340,21 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Transaction ID is required');
   }
 
-  const payment = await Payment.findOne({ transaction_id: transactionId });
-  if (!payment) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Payment not found');
-  }
+  // Atomic transition: only one concurrent caller wins; others get null back
+  const payment = await Payment.findOneAndUpdate(
+    { transaction_id: transactionId, status: { $ne: 'completed' } },
+    { $set: { status: 'completed' } },
+    { new: true },
+  );
 
-  if (payment.status === 'completed') {
-    const existingOrder = await Tax.findById(payment.orderId);
-    return {
-      payment,
-      tax_order: existingOrder,
-    };
+  if (!payment) {
+    // Already completed (idempotent) or not found
+    const existing = await Payment.findOne({ transaction_id: transactionId });
+    if (!existing) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Payment not found');
+    }
+    const existingOrder = await Tax.findById(existing.orderId);
+    return { payment: existing, tax_order: existingOrder };
   }
 
   const taxOrder = await Tax.findById(payment.orderId);
@@ -359,9 +363,6 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
   }
 
   const feeAmount = Number(taxOrder.fee_amount || 0);
-
-  payment.status = 'completed';
-  await payment.save();
 
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
