@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, NextFunction, Request, Response } from 'express';
 import { TaxController } from './tax.controller';
 import auth from '../../middlewares/auth';
 import { USER_ROLE } from '../users/user.constant';
+import { upload } from '../../utils/sendImageToCloudinary';
 
 const router = Router();
 
@@ -46,6 +47,19 @@ router.get(
   '/all-orders',
   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
   TaxController.getAllTaxOrders,
+);
+
+router.post(
+  '/:taxId/admin-upload-document',
+  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+  upload.single('file'),
+  (req: Request, res: Response, next: NextFunction) => {
+    if (req.body.data) {
+      req.body = { ...JSON.parse(req.body.data), ...req.body };
+    }
+    next();
+  },
+  TaxController.adminUploadDocumentForUser,
 );
 
 router.get(
