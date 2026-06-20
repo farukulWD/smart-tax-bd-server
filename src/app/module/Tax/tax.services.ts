@@ -88,7 +88,7 @@ const validateStepOneData = (taxData: StepOnePayload) => {
   }
 
   const { personal_information, source_of_income, tax_year } = taxData;
-  const { name, email, phone } = personal_information || {};
+  const { name, phone } = personal_information || {};
 
   if (!personal_information) {
     throw new AppError(
@@ -97,10 +97,10 @@ const validateStepOneData = (taxData: StepOnePayload) => {
     );
   }
 
-  if (!name || !email || !phone) {
+  if (!name || !phone) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Name, email, and phone are required in personal information',
+      'Name and phone are required in personal information',
     );
   }
 
