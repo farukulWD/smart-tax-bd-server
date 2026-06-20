@@ -12,6 +12,7 @@ import { User } from '../users/user.model';
 import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
+import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -203,7 +204,19 @@ const uploadTaxStepTwoDocumentsToDB = async (
   userId: string,
   taxId: string,
   documentIds: string[],
+  skip_upload?: boolean,
 ) => {
+  const taxOrder = await assertTaxOrderOwnership(taxId, userId);
+
+  if (skip_upload) {
+    const result = await Tax.findByIdAndUpdate(
+      taxId,
+      { files_upload_pending: true, current_step: 2, status: 'payment_pending' },
+      { new: true },
+    );
+    return result;
+  }
+
   if (!Array.isArray(documentIds) || documentIds.length === 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -211,7 +224,6 @@ const uploadTaxStepTwoDocumentsToDB = async (
     );
   }
 
-  const taxOrder = await assertTaxOrderOwnership(taxId, userId);
   const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
 
   const validDocumentIds = documentIds.filter(id => Types.ObjectId.isValid(id));
@@ -243,15 +255,19 @@ const uploadTaxStepTwoDocumentsToDB = async (
     );
   }
 
-  const result = await Tax.findByIdAndUpdate(
-    taxId,
-    {
-      documents: validDocumentIds,
-      current_step: 2,
-      status: 'documents_uploaded',
-    },
-    { new: true },
-  );
+  const updatePayload: Record<string, unknown> = {
+    documents: validDocumentIds,
+    current_step: 2,
+    status: 'documents_uploaded',
+  };
+
+  if (taxOrder.files_upload_pending) {
+    updatePayload.files_upload_pending = false;
+  }
+
+  const result = await Tax.findByIdAndUpdate(taxId, updatePayload, {
+    new: true,
+  });
 
   notificationService
     .sendNotification({
@@ -273,28 +289,30 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
 
-  if (!taxOrder.documents || taxOrder.documents.length === 0) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Please upload required documents first',
-    );
-  }
+  if (!taxOrder.files_upload_pending) {
+    if (!taxOrder.documents || taxOrder.documents.length === 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Please upload required documents first',
+      );
+    }
 
-  const files = await Files.find({
-    _id: { $in: taxOrder.documents },
-    userId: taxOrder.userId,
-  }).select('type');
-  const uploadedTypes = new Set(files.map(file => file.type));
-  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
-  const missingDocuments = requiredDocuments.filter(
-    doc => !uploadedTypes.has(doc),
-  );
-
-  if (missingDocuments.length > 0) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Cannot pay before completing required documents: ${missingDocuments.join(', ')}`,
+    const files = await Files.find({
+      _id: { $in: taxOrder.documents },
+      userId: taxOrder.userId,
+    }).select('type');
+    const uploadedTypes = new Set(files.map(file => file.type));
+    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const missingDocuments = requiredDocuments.filter(
+      doc => !uploadedTypes.has(doc),
     );
+
+    if (missingDocuments.length > 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot pay before completing required documents: ${missingDocuments.join(', ')}`,
+      );
+    }
   }
 
   const paymentData: IPaymentDataForInit = {
@@ -511,6 +529,76 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
   };
 };
 
+const adminUploadDocumentForUserToDB = async (
+  taxId: string,
+  file: Express.Multer.File,
+  docType: string,
+) => {
+  if (!file) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'File is required');
+  }
+
+  if (!docType) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Document type is required');
+  }
+
+  if (!Types.ObjectId.isValid(taxId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid tax order ID');
+  }
+
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  const fileName =
+    file.mimetype === 'application/pdf'
+      ? file.originalname.replace(/\s+/g, '_')
+      : file.originalname.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_');
+
+  const { secure_url } = (await sendImageToCloudinary(
+    fileName,
+    file.path,
+    file.mimetype,
+  )) as { secure_url: string };
+
+  const fileData = await Files.create({
+    name: docType,
+    type: docType,
+    file: secure_url,
+    userId: taxOrder.userId,
+    orderId: taxId,
+  });
+
+  await Tax.findByIdAndUpdate(taxId, {
+    $addToSet: { documents: fileData._id },
+  });
+
+  const allFiles = await Files.find({
+    orderId: taxId,
+    userId: taxOrder.userId,
+  }).select('type');
+
+  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+  const uploadedTypes = new Set(allFiles.map(f => f.type));
+  const missingDocuments = requiredDocuments.filter(
+    doc => !uploadedTypes.has(doc),
+  );
+
+  if (missingDocuments.length === 0 && taxOrder.files_upload_pending) {
+    await Tax.findByIdAndUpdate(taxId, {
+      files_upload_pending: false,
+      status: 'documents_uploaded',
+    });
+  }
+
+  return {
+    file: fileData,
+    files_upload_pending: missingDocuments.length > 0,
+    missing_documents: missingDocuments,
+  };
+};
+
 export const TaxService = {
   createTaxStepOneToDB,
   updateTaxStepOneToDB,
@@ -522,4 +610,5 @@ export const TaxService = {
   getMyTaxOrdersFromDB,
   getAllTaxOrdersFromDB,
   updateTaxOrderToDB,
+  adminUploadDocumentForUserToDB,
 };

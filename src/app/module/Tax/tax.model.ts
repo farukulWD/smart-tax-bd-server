@@ -49,6 +49,7 @@ const taxModel = new Schema<ITax>(
         'archived',
         'deleted',
         'payment_pending',
+        'documents_uploaded',
       ],
       default: 'draft',
     },
@@ -125,6 +126,10 @@ const taxModel = new Schema<ITax>(
     },
     tax_paid_date: {
       type: Date,
+    },
+    files_upload_pending: {
+      type: Boolean,
+      default: false,
     },
   },
   {
