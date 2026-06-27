@@ -13,6 +13,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'https://smart-tax-bd-client.vercel.app',
+  'https://smart-tax-bd-admin.vercel.app',
   'http://staging.smarttaxbd.com',
 ];
 app.use(
