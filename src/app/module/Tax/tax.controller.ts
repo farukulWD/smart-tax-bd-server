@@ -33,18 +33,42 @@ const uploadTaxStepTwoDocuments = catchAsync(
   async (req: Request, res: Response) => {
     const userId = String(req.user?.userId || '');
     const taxId = String(req.params.taxId || '');
-    const { documents } = req.body;
+    const { documents, skip_upload } = req.body;
 
     const result = await TaxService.uploadTaxStepTwoDocumentsToDB(
       userId,
       taxId,
       documents,
+      skip_upload,
     );
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
-      message: 'Tax step-2 documents uploaded successfully',
+      message: skip_upload
+        ? 'Files upload skipped. You can upload documents later.'
+        : 'Tax step-2 documents uploaded successfully',
+      data: result,
+    });
+  },
+);
+
+const adminUploadDocumentForUser = catchAsync(
+  async (req: Request, res: Response) => {
+    const taxId = String(req.params.taxId || '');
+    const { type } = req.body;
+    const file = req.file;
+
+    const result = await TaxService.adminUploadDocumentForUserToDB(
+      taxId,
+      file as Express.Multer.File,
+      type,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Document uploaded for user successfully',
       data: result,
     });
   },
@@ -177,4 +201,5 @@ export const TaxController = {
   getMyTaxOrders,
   getAllTaxOrders,
   updateTaxOrder,
+  adminUploadDocumentForUser,
 };

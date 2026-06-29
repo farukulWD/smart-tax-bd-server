@@ -9,7 +9,13 @@ import httpStatus from 'http-status';
 
 const app: Application = express();
 
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://smart-tax-bd-client.vercel.app',
+  'https://smart-tax-bd-admin.vercel.app',
+  'http://staging.smarttaxbd.com',
+];
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -25,6 +31,10 @@ app.use(
 
 app.use(cookieParser());
 app.use(express.json());
+
+app.get('/', (_req, res) => {
+  res.json({ message: 'Welcome to Smart Tax BD API' });
+});
 
 app.use('/api/v1', router);
 

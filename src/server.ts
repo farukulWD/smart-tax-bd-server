@@ -1,4 +1,4 @@
-import { rabbitMq } from './app/utils/rabbitmq';
+// import { rabbitMq } from './app/utils/rabbitmq'; // RabbitMQ not in use
 import { Server } from 'http';
 import app from './app';
 import config from './app/config';
@@ -7,7 +7,7 @@ import connectDB from './app/utils/db';
 
 import { initializeSocketIO} from './app/utils/socket';
 import { startCronJobs } from './app/utils/cronJobs';
-const connectRabbitMQ = rabbitMq.connect
+// const connectRabbitMQ = rabbitMq.connect; // RabbitMQ not in use
 
 
 
@@ -22,14 +22,13 @@ async function bootstrap() {
       // Start the cron jobs
       startCronJobs();
 
-      try {
-        await connectRabbitMQ('amqp://localhost');
-        logger.info('Connected to RabbitMQ');
-
-        await rabbitMq.handleNotifications();
-      } catch (rabbitMQError) {
-        logger.error('Failed to connect to RabbitMQ:', rabbitMQError);
-      }
+      // try {
+      //   await connectRabbitMQ('amqp://localhost');
+      //   logger.info('Connected to RabbitMQ');
+      //   await rabbitMq.handleNotifications();
+      // } catch (rabbitMQError) {
+      //   logger.error('Failed to connect to RabbitMQ:', rabbitMQError);
+      // }
     });
 
     // Graceful shutdown handlers
@@ -39,12 +38,12 @@ async function bootstrap() {
           logger.info('Server closed');
         });
       }
-      try {
-        await rabbitMq.closeRabbitMQ();
-        logger.info('RabbitMQ connection closed');
-      } catch (closeError) {
-        logger.error('Error closing RabbitMQ connection:', closeError);
-      }
+      // try {
+      //   await rabbitMq.closeRabbitMQ();
+      //   logger.info('RabbitMQ connection closed');
+      // } catch (closeError) {
+      //   logger.error('Error closing RabbitMQ connection:', closeError);
+      // }
       process.exit(1);
     };
 

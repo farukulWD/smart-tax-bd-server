@@ -4,8 +4,18 @@ import httpStatus from 'http-status';
 import taxTypesModel from './tax.types.model';
 
 const createTaxTypeToDB = async (taxType: Taxtypes) => {
-  if (!taxType.title) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type title is required');
+  if (!taxType.title?.en || !taxType.title?.bn) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Tax type title is required in both English and Bangla',
+    );
+  }
+
+  if (!taxType.description?.en || !taxType.description?.bn) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Tax type description is required in both English and Bangla',
+    );
   }
 
   if (!taxType.rate) {
@@ -14,11 +24,6 @@ const createTaxTypeToDB = async (taxType: Taxtypes) => {
 
   if (!taxType.value) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type value is required');
-  }
-
-  const isExist = await taxTypesModel.findOne({ value: taxType.value });
-  if (isExist) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Tax type already exists');
   }
 
   const result = await taxTypesModel.create(taxType);

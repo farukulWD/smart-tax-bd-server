@@ -2,12 +2,15 @@ import { Router } from 'express';
 import { TaxTypeController } from './tax.types.controller';
 import auth from '../../middlewares/auth';
 import { USER_ROLE } from '../users/user.constant';
+import validateRequest from '../../middlewares/validateRequest';
+import { TaxTypeValidation } from './tax.types.validation';
 
 const route = Router();
 
 route.post(
   '/create-tax-type',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),
+  validateRequest(TaxTypeValidation.createTaxTypeValidationSchema),
   TaxTypeController.createTaxType,
 );
 route.get(
@@ -18,6 +21,7 @@ route.get(
 route.patch(
   '/update-tax-type/:id',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),
+  validateRequest(TaxTypeValidation.updateTaxTypeValidationSchema),
   TaxTypeController.updateTaxType,
 );
 route.delete(

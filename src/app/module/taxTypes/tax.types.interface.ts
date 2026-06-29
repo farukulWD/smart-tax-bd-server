@@ -1,6 +1,11 @@
-export interface Taxtypes extends Document {
+export interface LocalizedText {
+  en: string;
+  bn: string;
+}
+
+export interface Taxtypes {
   _id?: string;
-  title: string;
+  title: LocalizedText;
   rate: number;
   value:
     | 'income_tax'
@@ -21,7 +26,7 @@ export interface Taxtypes extends Document {
     | 'wealth_tax';
   icon?: string;
   tax_orders_id?: string[];
-  description: string;
+  description: LocalizedText;
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;

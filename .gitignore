@@ -2,11 +2,13 @@ node_modules
 dist
 logs
 .env
+.env.example
 coverage
 *.log
 uploads
 
-# Lock files
+# Lock files 
+
 package-lock.json
 yarn.lock
 pnpm-lock.yaml

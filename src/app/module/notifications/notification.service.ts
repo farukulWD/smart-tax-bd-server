@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import { Types } from 'mongoose';
 import AppError from '../../errors/AppError';
-import { emitNotification } from '../../utils/socket';
+import { emitNotification, emitToAdmins } from '../../utils/socket';
 import { INotification, ISendNotificationParams } from './notification.interface';
 import { Notification } from './notification.model';
 
@@ -21,6 +21,10 @@ const sendNotification = async (
   });
 
   emitNotification(params.recipientId, params.type, notification.toObject());
+
+  try {
+    emitToAdmins(params.type, notification.toObject());
+  } catch (_) {}
 
   return notification;
 };

@@ -25,11 +25,12 @@ export type TaxStatus =
   | 'on_hold'
   | 'archived'
   | 'deleted'
-  | 'payment_pending';
+  | 'payment_pending'
+  | 'documents_uploaded';
 
 export interface IPersonalInformation {
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   are_you_student: boolean;
   are_you_house_wife: boolean;
@@ -58,6 +59,7 @@ export interface ITax extends Document {
   tax_paid_date?: Date;
   total_amount: number;
   total_paid_amount: number;
+  files_upload_pending: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
