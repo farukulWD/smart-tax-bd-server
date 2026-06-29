@@ -1,9 +1,17 @@
 import { model, Schema } from 'mongoose';
-import { Taxtypes } from './tax.types.interface';
+import { LocalizedText, Taxtypes } from './tax.types.interface';
+
+const localizedTextSchema = new Schema<LocalizedText>(
+  {
+    en: { type: String, required: true },
+    bn: { type: String, required: true },
+  },
+  { _id: false },
+);
 
 const taxTypesSchema = new Schema<Taxtypes>({
   title: {
-    type: String,
+    type: localizedTextSchema,
     required: true,
   },
   rate: {
@@ -12,7 +20,6 @@ const taxTypesSchema = new Schema<Taxtypes>({
   value: {
     type: String,
     required: true,
-    unique: true,
     enum: [
       'income_tax',
       'house_rental_tax',
@@ -32,6 +39,9 @@ const taxTypesSchema = new Schema<Taxtypes>({
       'wealth_tax',
     ],
   },
+  icon: {
+    type: String,
+  },
   tax_orders_id: [
     {
       type: Schema.Types.ObjectId,
@@ -39,7 +49,7 @@ const taxTypesSchema = new Schema<Taxtypes>({
     },
   ],
   description: {
-    type: String,
+    type: localizedTextSchema,
   },
   isActive: {
     type: Boolean,
