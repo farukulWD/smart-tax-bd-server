@@ -96,6 +96,7 @@ jobs:
             SMS_API_END_POINT=$SMS_API_END_POINT
             EOF
             cat > docker-compose.yml <<'COMPOSE'
+            name: smart-tax-bd-server-${{ steps.env.outputs.NAME }}
             services:
               app:
                 image: ${IMAGE}
