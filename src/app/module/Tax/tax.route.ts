@@ -30,6 +30,13 @@ router.post(
   TaxController.payTaxStepThree,
 );
 
+// TEMPORARY: place order without the SSLCommerz gateway (manual bKash payment).
+router.post(
+  '/:taxId/place-manual',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.placeTaxOrderManually,
+);
+
 router.patch(
   '/update-tax-order/:taxId',
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
