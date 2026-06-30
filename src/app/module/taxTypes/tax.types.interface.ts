@@ -9,6 +9,8 @@ export interface Taxtypes {
   rate: number;
   value:
     | 'income_tax'
+    | 'income_tax_government'
+    | 'income_tax_non_government'
     | 'house_rental_tax'
     | 'property_tax'
     | 'business_tax'
