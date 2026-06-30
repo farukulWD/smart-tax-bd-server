@@ -87,6 +87,20 @@ const payTaxStepThree = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// TEMPORARY: places the order without the SSLCommerz gateway (manual bKash).
+const placeTaxOrderManually = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.placeTaxOrderManuallyToDB(userId, taxId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Order placed. The author will contact you for payment.',
+    data: result,
+  });
+});
+
 const taxPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
   const transactionId = String(
     req.body?.tran_id || req.query?.tran_id || req.params?.transactionId || '',
@@ -193,6 +207,7 @@ export const TaxController = {
   updateTaxStepOne,
   uploadTaxStepTwoDocuments,
   payTaxStepThree,
+  placeTaxOrderManually,
   taxPaymentSuccess,
   taxPaymentFail,
   taxPaymentCancel,

@@ -335,6 +335,86 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
   };
 };
 
+// TEMPORARY: Places the order without going through the SSLCommerz gateway.
+// Used while bKash payment is handled manually (author contacts the user).
+// Remove / replace with real gateway flow when payments are reconnected.
+const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
+  const taxOrder = await Tax.findById(taxId);
+
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  // Same document guard used by the real step-3 payment init
+  if (!taxOrder.files_upload_pending) {
+    if (!taxOrder.documents || taxOrder.documents.length === 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Please upload required documents first',
+      );
+    }
+
+    const files = await Files.find({
+      _id: { $in: taxOrder.documents },
+      userId: taxOrder.userId,
+    }).select('type');
+    const uploadedTypes = new Set(files.map(file => file.type));
+    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const missingDocuments = requiredDocuments.filter(
+      doc => !uploadedTypes.has(doc),
+    );
+
+    if (missingDocuments.length > 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot place order before completing required documents: ${missingDocuments.join(', ')}`,
+      );
+    }
+  }
+
+  const feeAmount = Number(taxOrder.fee_amount || 0);
+  const tran_id = new Types.ObjectId().toString();
+
+  // Record the transaction so it stays visible in the admin payments list
+  await Payment.create({
+    userId,
+    orderId: taxOrder._id,
+    amount: feeAmount,
+    paymentFor: 'fee_amount',
+    currency: 'BDT',
+    status: 'completed',
+    transaction_id: tran_id,
+    payment_method: 'manual_bkash',
+  });
+
+  const updatedOrder = await Tax.findByIdAndUpdate(
+    taxOrder._id,
+    {
+      current_step: 3,
+      status: 'order_placed',
+      total_amount: feeAmount,
+      total_paid_amount: feeAmount,
+      ...getPaymentsType('fee_amount'),
+    },
+    { new: true },
+  );
+
+  notificationService
+    .sendNotification({
+      recipientId: userId,
+      type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
+      title: 'Tax Order Placed',
+      message:
+        'Your tax order has been placed. The author will contact you for payment.',
+      data: { orderId: taxOrder._id, transactionId: tran_id, amount: feeAmount },
+    })
+    .catch(() => {});
+
+  return {
+    tax_order: updatedOrder,
+  };
+};
+
 const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
   if (!transactionId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Transaction ID is required');
@@ -605,6 +685,7 @@ export const TaxService = {
   updateTaxStepOneToDB,
   uploadTaxStepTwoDocumentsToDB,
   initTaxStepThreePaymentToDB,
+  placeTaxOrderManuallyToDB,
   completeTaxOrderPaymentSuccessToDB,
   markTaxOrderPaymentFailedToDB,
   getTaxOrderByIdFromDB,
