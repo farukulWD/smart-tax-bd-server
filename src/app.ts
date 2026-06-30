@@ -14,7 +14,10 @@ const allowedOrigins = [
   'http://localhost:3001',
   'https://smart-tax-bd-client.vercel.app',
   'https://smart-tax-bd-admin.vercel.app',
-  'http://staging.smarttaxbd.com',
+  'http://smarttaxbd.com',
+  'https://smarttaxbd.com',
+  'https://www.smarttaxbd.com',
+  'https://admin.smarttaxbd.com',
 ];
 app.use(
   cors({
