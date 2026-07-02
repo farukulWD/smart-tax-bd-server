@@ -1,25 +1,7 @@
 import { z } from 'zod';
+import { TAX_TYPE_VALUES } from './tax.types.interface';
 
-const taxTypeValueEnum = z.enum([
-  'income_tax',
-  'income_tax_government',
-  'income_tax_non_government',
-  'house_rental_tax',
-  'property_tax',
-  'business_tax',
-  'import_duty',
-  'vat',
-  'excise_duty',
-  'customs_duty',
-  'capital_gains_tax',
-  'gift_tax',
-  'inheritance_tax',
-  'sales_tax',
-  'service_tax',
-  'entertainment_tax',
-  'environmental_tax',
-  'wealth_tax',
-]);
+const taxTypeValueEnum = z.enum(TAX_TYPE_VALUES);
 
 const localizedTextSchema = z.object({
   en: z.string().min(1, { message: 'English text is required' }),

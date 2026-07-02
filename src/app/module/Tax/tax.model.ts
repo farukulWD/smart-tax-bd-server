@@ -1,5 +1,6 @@
 import { Schema, model } from 'mongoose';
 import { IncomeSource, ITax } from './tax.interface';
+import { TAX_TYPE_VALUES } from '../taxTypes/tax.types.interface';
 
 const fee_amount = 1000;
 
@@ -78,6 +79,11 @@ const taxModel = new Schema<ITax>(
       type: [String],
       enum: Object.values(IncomeSource),
       required: true,
+    },
+    tax_types: {
+      type: [String],
+      enum: [...TAX_TYPE_VALUES],
+      default: [],
     },
     tax_year: {
       type: String,
