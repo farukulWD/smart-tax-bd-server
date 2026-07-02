@@ -13,11 +13,13 @@ import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
+import { TaxTypeValue } from '../taxTypes/tax.types.interface';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
   tax_year: string;
-  source_of_income: IncomeSource[];
+  source_of_income?: IncomeSource[];
+  tax_types?: TaxTypeValue[];
   income_from_ldt_company?: boolean;
   income_from_partnership_firm?: boolean;
   are_you_get_notice_from_tax_office?: boolean;
@@ -60,6 +62,49 @@ const INCOME_SOURCE_DOCUMENT_MAP: Partial<Record<IncomeSource, string[]>> = {
   [IncomeSource.ForignRemitance]: ['Bank Statement'],
 };
 
+const BUSINESS_DOCUMENTS = [
+  'Trade License',
+  'Purchase Statement',
+  'Sales or Received Statement',
+  'Profit & Loss Statement',
+  'Balance Sheet',
+];
+
+const TAX_TYPE_DOCUMENT_MAP: Partial<Record<TaxTypeValue, string[]>> = {
+  income_tax: ['Salary Statement', 'Tax Deduction Copy'],
+  income_tax_government: ['Salary Statement', 'Tax Deduction Copy'],
+  income_tax_non_government: ['Salary Statement', 'Tax Deduction Copy'],
+  business_tax: BUSINESS_DOCUMENTS,
+  sales_tax: BUSINESS_DOCUMENTS,
+  vat: BUSINESS_DOCUMENTS,
+  service_tax: BUSINESS_DOCUMENTS,
+  import_duty: BUSINESS_DOCUMENTS,
+  excise_duty: BUSINESS_DOCUMENTS,
+  customs_duty: BUSINESS_DOCUMENTS,
+  entertainment_tax: BUSINESS_DOCUMENTS,
+  environmental_tax: BUSINESS_DOCUMENTS,
+  house_rental_tax: ['Tax Token'],
+  property_tax: ['Tax Token'],
+  capital_gains_tax: [
+    'Land Purchase Documents',
+    'Flat Purchase Documents',
+    'Vehicle Purchase Documents',
+  ],
+  gift_tax: ['Others Documents'],
+  inheritance_tax: ['Others Documents'],
+  wealth_tax: [
+    'DPS Certificate',
+    'FDR Certificate',
+    'Sonchoypotro Certificate',
+    'Insurance Certificate',
+    'Share Certificate',
+    'Pension Scheme Certificate',
+  ],
+  housewife_tax_return: ['Others Documents'],
+  agriculture_tax_return: ['Others Documents'],
+  non_resident_bangladeshis: ['Bank Statement', 'Others Documents'],
+};
+
 const getRequiredDocumentsFromTax = (taxData: Partial<ITax>) => {
   const required = new Set<string>(COMMON_REQUIRED_DOCUMENTS);
   const sources = Array.isArray(taxData.source_of_income)
@@ -70,6 +115,12 @@ const getRequiredDocumentsFromTax = (taxData: Partial<ITax>) => {
     (INCOME_SOURCE_DOCUMENT_MAP[source] || []).forEach(doc =>
       required.add(doc),
     );
+  });
+
+  const taxTypes = Array.isArray(taxData.tax_types) ? taxData.tax_types : [];
+
+  taxTypes.forEach(type => {
+    (TAX_TYPE_DOCUMENT_MAP[type] || []).forEach(doc => required.add(doc));
   });
 
   if (taxData.are_you_get_notice_from_tax_office) {
@@ -105,10 +156,15 @@ const validateStepOneData = (taxData: StepOnePayload) => {
     );
   }
 
-  if (!source_of_income || source_of_income.length === 0) {
+  const hasIncomeSource =
+    Array.isArray(source_of_income) && source_of_income.length > 0;
+  const hasTaxTypes =
+    Array.isArray(taxData.tax_types) && taxData.tax_types.length > 0;
+
+  if (!hasIncomeSource && !hasTaxTypes) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'At least one source of income is required',
+      'At least one tax type or source of income is required',
     );
   }
 

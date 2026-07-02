@@ -1,4 +1,5 @@
 import { Document, Schema, Types } from 'mongoose';
+import { TaxTypeValue } from '../taxTypes/tax.types.interface';
 
 // define the income source enum
 export enum IncomeSource {
@@ -47,6 +48,7 @@ export interface ITax extends Document {
   income_from_partnership_firm: boolean;
   income_from_ldt_company: boolean;
   source_of_income: Array<IncomeSource>;
+  tax_types: Array<TaxTypeValue>;
   tax_year: string;
   documents: Schema.Types.ObjectId[];
   tax_payable_amount: number;
