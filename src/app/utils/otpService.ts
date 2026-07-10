@@ -1,18 +1,14 @@
 import bcrypt from 'bcryptjs';
 import httpStatus from 'http-status';
 import AppError from '../errors/AppError';
+import { Otp } from '../module/otp/otp.model';
 import { formatBDPhone, sendSMS } from './smsService';
 
 // ---------------------------------------------------------------------------
-// In-memory store  (swap for Redis in production for multi-instance deployments)
+// Store: MongoDB `otps` collection (shared across instances, TTL-cleaned).
+// A TTL index on `expiresAt` lets Mongo auto-delete expired codes; the manual
+// expiry checks below still gate correctness (TTL sweep only runs ~every 60s).
 // ---------------------------------------------------------------------------
-
-type OTPEntry = {
-  hash: string;
-  expiresAt: number; // Unix ms
-};
-
-const otpStore = new Map<string, OTPEntry>();
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,17 +33,33 @@ const randomOTP = (): string =>
 
 /**
  * Generate a plain-text OTP, hash it, and persist it for the given phone.
- * Calling again before expiry overwrites the previous entry.
+ * Enforces a per-number cooldown: while a previous OTP is still valid (within
+ * the 5-minute TTL) a new one cannot be requested — the caller must wait for it
+ * to expire. This satisfies "resend after 5 minutes per number".
  */
 export const generateOTP = async (phone: string): Promise<string> => {
   const mobile = formatBDPhone(phone); // validates and normalises
+
+  const existing = await Otp.findOne({ phone: mobile });
+  if (existing && Date.now() < existing.expiresAt.getTime()) {
+    const secondsLeft = Math.ceil(
+      (existing.expiresAt.getTime() - Date.now()) / 1000,
+    );
+    throw new AppError(
+      httpStatus.TOO_MANY_REQUESTS, // 429
+      `Please wait ${secondsLeft}s before requesting a new code`,
+    );
+  }
+
   const otp = randomOTP();
   const hash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
 
-  otpStore.set(mobile, {
-    hash,
-    expiresAt: Date.now() + OTP_TTL_MS,
-  });
+  // Upsert so an expired entry is overwritten atomically (unique index on phone).
+  await Otp.findOneAndUpdate(
+    { phone: mobile },
+    { hash, expiresAt: new Date(Date.now() + OTP_TTL_MS) },
+    { upsert: true, new: true },
+  );
 
   return otp;
 };
@@ -71,7 +83,7 @@ export const sendOTP = async (phone: string): Promise<void> => {
  */
 export const verifyOTP = async (phone: string, otp: string): Promise<void> => {
   const mobile = formatBDPhone(phone);
-  const entry = otpStore.get(mobile);
+  const entry = await Otp.findOne({ phone: mobile });
 
   if (!entry) {
     throw new AppError(
@@ -80,8 +92,8 @@ export const verifyOTP = async (phone: string, otp: string): Promise<void> => {
     );
   }
 
-  if (Date.now() > entry.expiresAt) {
-    otpStore.delete(mobile);
+  if (Date.now() > entry.expiresAt.getTime()) {
+    await Otp.deleteOne({ phone: mobile });
     throw new AppError(
       httpStatus.GONE,                     // 410
       'OTP has expired. Please request a new one.',
@@ -94,5 +106,5 @@ export const verifyOTP = async (phone: string, otp: string): Promise<void> => {
   }
 
   // Consumed — remove immediately (one-time use)
-  otpStore.delete(mobile);
+  await Otp.deleteOne({ phone: mobile });
 };
