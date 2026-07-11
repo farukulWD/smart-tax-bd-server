@@ -10,6 +10,7 @@ import { notificationRoutes } from '../module/notifications/notification.route';
 import { BlogRoutes } from '../module/blog/blog.route';
 import { ReviewRoutes } from '../module/review/review.route';
 import { FaqRoutes } from '../module/faq/faq.route';
+import { HowItWorkRoutes } from '../module/howItWork/howItWork.route';
 
 const router = Router();
 
@@ -57,6 +58,10 @@ const moduleRoutes = [
   {
     path: '/faqs',
     route: FaqRoutes,
+  },
+  {
+    path: '/how-it-works',
+    route: HowItWorkRoutes,
   },
 ];
 
