@@ -1,0 +1,10 @@
+import { Document } from 'mongoose';
+
+export interface IFaq extends Document {
+  question: string;
+  answer: string;
+  order: number;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
