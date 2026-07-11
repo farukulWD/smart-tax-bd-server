@@ -9,6 +9,7 @@ import { UpdateNewsRoute } from '../module/updateNews/updateNews.route';
 import { notificationRoutes } from '../module/notifications/notification.route';
 import { BlogRoutes } from '../module/blog/blog.route';
 import { ReviewRoutes } from '../module/review/review.route';
+import { FaqRoutes } from '../module/faq/faq.route';
 
 const router = Router();
 
@@ -52,6 +53,10 @@ const moduleRoutes = [
   {
     path: '/reviews',
     route: ReviewRoutes,
+  },
+  {
+    path: '/faqs',
+    route: FaqRoutes,
   },
 ];
 
