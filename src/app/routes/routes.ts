@@ -7,6 +7,7 @@ import { FileRoute } from '../module/files/file.route';
 import { paymentRoutes } from '../module/payments/payment.route';
 import { UpdateNewsRoute } from '../module/updateNews/updateNews.route';
 import { notificationRoutes } from '../module/notifications/notification.route';
+import { BlogRoutes } from '../module/blog/blog.route';
 
 const router = Router();
 
@@ -42,6 +43,10 @@ const moduleRoutes = [
   {
     path: '/notifications',
     route: notificationRoutes,
+  },
+  {
+    path: '/blogs',
+    route: BlogRoutes,
   },
 ];
 
