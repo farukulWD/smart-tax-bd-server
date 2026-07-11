@@ -7,6 +7,10 @@ import { FileRoute } from '../module/files/file.route';
 import { paymentRoutes } from '../module/payments/payment.route';
 import { UpdateNewsRoute } from '../module/updateNews/updateNews.route';
 import { notificationRoutes } from '../module/notifications/notification.route';
+import { BlogRoutes } from '../module/blog/blog.route';
+import { ReviewRoutes } from '../module/review/review.route';
+import { FaqRoutes } from '../module/faq/faq.route';
+import { HowItWorkRoutes } from '../module/howItWork/howItWork.route';
 
 const router = Router();
 
@@ -42,6 +46,22 @@ const moduleRoutes = [
   {
     path: '/notifications',
     route: notificationRoutes,
+  },
+  {
+    path: '/blogs',
+    route: BlogRoutes,
+  },
+  {
+    path: '/reviews',
+    route: ReviewRoutes,
+  },
+  {
+    path: '/faqs',
+    route: FaqRoutes,
+  },
+  {
+    path: '/how-it-works',
+    route: HowItWorkRoutes,
   },
 ];
 
