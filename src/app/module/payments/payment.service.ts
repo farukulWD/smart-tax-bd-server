@@ -398,11 +398,19 @@ const recordCashPaymentToDB = async ({
     payment_method: 'cash',
   });
 
+  // Merge the newly-paid flags onto the current order so we can decide status.
+  const paidFlags = getPaymentsType(paymentFor);
+  const isFeeAmountPaid =
+    order.is_fee_amount_paid || !!paidFlags?.is_fee_amount_paid;
+
   const updatedOrder = await Tax.findByIdAndUpdate(
     order._id,
     {
-      ...getPaymentsType(paymentFor),
+      ...paidFlags,
       total_paid_amount: (order.total_paid_amount || 0) + (payableAmount || 0),
+      // Once the service fee is settled the order is officially placed — mirrors
+      // the gateway success flow so the user-facing status stops showing pending.
+      ...(isFeeAmountPaid ? { status: 'order_placed' } : {}),
     },
     { new: true },
   );
