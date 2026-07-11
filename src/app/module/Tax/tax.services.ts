@@ -267,7 +267,11 @@ const uploadTaxStepTwoDocumentsToDB = async (
   if (skip_upload) {
     const result = await Tax.findByIdAndUpdate(
       taxId,
-      { files_upload_pending: true, current_step: 2, status: 'payment_pending' },
+      {
+        files_upload_pending: true,
+        current_step: 2,
+        status: 'payment_pending',
+      },
       { new: true },
     );
     return result;
@@ -431,26 +435,26 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
   const feeAmount = Number(taxOrder.fee_amount || 0);
   const tran_id = new Types.ObjectId().toString();
 
-  // Record the transaction so it stays visible in the admin payments list
-  await Payment.create({
-    userId,
-    orderId: taxOrder._id,
-    amount: feeAmount,
-    paymentFor: 'fee_amount',
-    currency: 'BDT',
-    status: 'completed',
-    transaction_id: tran_id,
-    payment_method: 'manual_bkash',
-  });
+  // // Record the transaction so it stays visible in the admin payments list
+  // await Payment.create({
+  //   userId,
+  //   orderId: taxOrder._id,
+  //   amount: feeAmount,
+  //   paymentFor: 'fee_amount',
+  //   currency: 'BDT',
+  //   status: 'payment_pending',
+  //   transaction_id: tran_id,
+  //   payment_method: 'manual_bkash',
+  // });
 
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
       current_step: 3,
-      status: 'order_placed',
+      status: 'payment_pending',
       total_amount: feeAmount,
-      total_paid_amount: feeAmount,
-      ...getPaymentsType('fee_amount'),
+      total_paid_amount: 0,
+      is_fee_amount_paid: false,
     },
     { new: true },
   );
@@ -462,7 +466,11 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
       title: 'Tax Order Placed',
       message:
         'Your tax order has been placed. The author will contact you for payment.',
-      data: { orderId: taxOrder._id, transactionId: tran_id, amount: feeAmount },
+      data: {
+        orderId: taxOrder._id,
+        transactionId: tran_id,
+        amount: feeAmount,
+      },
     })
     .catch(() => {});
 
@@ -596,14 +604,22 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
 
-  if (taxData?.fee_due_amount && taxOrder?.is_fee_due_amount_paid) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Fee due amount is already paid',
-    );
+  // Only block when the admin actually changes a paid amount to a different
+  // value — sending the unchanged (pre-filled) amount must not fail a
+  // status-only edit.
+  if (
+    taxData?.fee_due_amount !== undefined &&
+    taxData.fee_due_amount !== taxOrder.fee_due_amount &&
+    taxOrder?.is_fee_due_amount_paid
+  ) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Fee due amount is already paid');
   }
 
-  if (taxData?.tax_payable_amount && taxOrder?.is_tax_payable_amount_paid) {
+  if (
+    taxData?.tax_payable_amount !== undefined &&
+    taxData.tax_payable_amount !== taxOrder.tax_payable_amount &&
+    taxOrder?.is_tax_payable_amount_paid
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Tax payable amount is already paid',
@@ -614,29 +630,24 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
   const tax_payable_amount =
     taxData.tax_payable_amount ?? taxOrder.tax_payable_amount ?? 0;
 
-  const getTotalAmount = () => {
-    if (taxData?.fee_due_amount) {
-      const total =
-        (taxData?.total_amount ?? 0 - taxOrder.fee_due_amount) + fee_due_amount;
-      return total;
-    }
+  const amountsChanged =
+    taxData.fee_due_amount !== undefined ||
+    taxData.tax_payable_amount !== undefined;
 
-    if (taxData?.tax_payable_amount) {
-      const total =
-        (taxData?.total_amount ?? 0 - taxOrder.tax_payable_amount) +
-        tax_payable_amount;
-      return total;
-    }
+  const total_amount =
+    (taxOrder.fee_amount ?? 0) + fee_due_amount + tax_payable_amount;
 
-    return taxOrder.total_amount;
-  };
+  // Respect an explicitly chosen status; only fall back to 'payment_pending'
+  // when amounts changed and no status was sent.
+  const nextStatus =
+    taxData.status ?? (amountsChanged ? 'payment_pending' : taxOrder.status);
 
   const result = await Tax.findByIdAndUpdate(
     taxId,
     {
       ...taxData,
-      total_amount: getTotalAmount(),
-      status: 'payment_pending',
+      total_amount,
+      status: nextStatus,
     },
     { new: true },
   );
@@ -649,7 +660,8 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
         recipientId: result.userId.toString(),
         type: NOTIFICATION_TYPE.TAX_AMOUNTS_UPDATED,
         title: 'Payment Required',
-        message: 'Your tax order amounts have been updated. Please proceed with payment.',
+        message:
+          'Your tax order amounts have been updated. Please proceed with payment.',
         data: {
           orderId: taxId,
           feeDueAmount: result.fee_due_amount,

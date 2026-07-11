@@ -40,6 +40,17 @@ const loginUser = async (payload: TLoginUser) => {
     throw new AppError(httpStatus.FORBIDDEN, 'This user is inactive !!');
   }
 
+  // block login until the phone number has been verified via OTP.
+  // Only applies to public 'user' accounts (admins are provisioned separately).
+  if (user.role === 'user' && !user.isMobileVerify) {
+    const verifyError = new AppError(
+      httpStatus.FORBIDDEN,
+      'Please verify your phone number',
+    );
+    verifyError.needsVerification = true;
+    throw verifyError;
+  }
+
   //checking if the password is correct
 
   if (!(await User.isPasswordMatched(payload?.password, user?.password)))

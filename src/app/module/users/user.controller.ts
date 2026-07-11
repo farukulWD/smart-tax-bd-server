@@ -16,6 +16,32 @@ const createUser = catchAsync(async (req, res) => {
   });
 });
 
+const verifyRegisterOtp = catchAsync(async (req, res) => {
+  const { mobile, otp } = req.body;
+
+  const result = await UserServices.verifyRegisterOTP(mobile, otp);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Mobile number verified successfully',
+    data: result,
+  });
+});
+
+const resendRegisterOtp = catchAsync(async (req, res) => {
+  const { mobile } = req.body;
+
+  const result = await UserServices.resendRegisterOTP(mobile);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'OTP sent successfully',
+    data: result,
+  });
+});
+
 const getUsers = catchAsync(async (req, res) => {
   const result = await UserServices.getUsers();
 
@@ -66,6 +92,8 @@ const getUser = catchAsync(async (req, res) => {
 
 export const UserControllers = {
   createUser,
+  verifyRegisterOtp,
+  resendRegisterOtp,
   updateUser,
   getUsers,
   getMe,

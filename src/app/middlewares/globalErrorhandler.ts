@@ -15,6 +15,7 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   // Setting default values
   let statusCode = 500;
   let message = 'Something went wrong!';
+  let needsVerification: boolean | undefined;
   let errorSources: TErrorSources = [
     {
       path: '',
@@ -45,6 +46,7 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   } else if (err instanceof AppError) {
     statusCode = err?.statusCode;
     message = err.message;
+    needsVerification = err?.needsVerification;
     errorSources = [
       {
         path: '',
@@ -65,6 +67,7 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   res.status(statusCode).json({
     success: false,
     message,
+    needsVerification,
     errorSources,
     err,
     stack: config.env === 'development' ? err?.stack : null,

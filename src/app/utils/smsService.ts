@@ -15,42 +15,28 @@ export const formatBDPhone = (phone: string): string => {
   throw new Error(`Invalid Bangladeshi phone number: ${phone}`);
 };
 
-/**
- * Send an SMS via the SendMySMS API (Bangladesh).
- *
- * Required env vars:
- *   SMS_API_END_POINT  – full API URL  (e.g. https://api.sendmysms.com/api/v1/send)
- *   SMS_API_USERNAME   – your account username
- *   SMS_API_KEY        – your API key
- */
 export const sendSMS = async (
   phone: string,
   message: string,
 ): Promise<void> => {
-  const endpoint = config.sms_api_end_points;
-  const username = config.sms_user_name;
+  const endpoint = config.sms_api_end_point;
   const apiKey = config.sms_api_key;
 
-  if (!endpoint || !username || !apiKey) {
+  if (!endpoint || !apiKey) {
     throw new Error(
-      'SMS configuration missing: ensure SMS_API_END_POINT, SMS_API_USERNAME, and SMS_API_KEY are set',
+      'SMS configuration missing: ensure SMS_API_END_POINT, and SMS_API_KEY are set',
     );
   }
 
   const mobile = formatBDPhone(phone);
 
-  const { data } = await axios.get(endpoint, {
-    params: {
-      user: username,
-      key: apiKey,
-      to: mobile,
-      msg: message,
-    },
-    timeout: 10_000,
+  const { data } = await axios.post(`${endpoint}/sendsms`, {
+    api_key: apiKey,
+    to: mobile,
+    msg: message,
   });
-
   // API returns { status: 'OK', response: '...' }
-  if (data?.status?.toUpperCase() !== 'OK') {
+  if (data?.error !== 0) {
     throw new Error(`SMS API error: ${data?.response ?? JSON.stringify(data)}`);
   }
 };

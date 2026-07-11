@@ -33,5 +33,5 @@ export default {
   // sms
   sms_user_name: process.env.SMS_API_USERNAME,
   sms_api_key: process.env.SMS_API_KEY,
-  sms_api_end_points: process.env.SMS_API_END_POINT,
+  sms_api_end_point: process.env.SMS_API_END_POINT,
 };
