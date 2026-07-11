@@ -12,6 +12,7 @@ import { ITax } from '../Tax/tax.interface';
 import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
+import { getPaymentsType } from '../Tax/tax.constant';
 
 const clientUrl = config.client_url;
 
@@ -128,7 +129,11 @@ const inintPaymentToDb = async (paymentData: IPaymentDataForInit) => {
       type: NOTIFICATION_TYPE.PAYMENT_INITIATED,
       title: 'Payment Initiated',
       message: `Payment of BDT ${payableAmount} has been initiated.`,
-      data: { orderId: orderData._id, amount: payableAmount, transactionId: tran_id },
+      data: {
+        orderId: orderData._id,
+        amount: payableAmount,
+        transactionId: tran_id,
+      },
     })
     .catch(() => {});
 
@@ -189,7 +194,7 @@ const success = async (tran_id: string) => {
     // so duplicate callbacks never send a second message
     User.findById(payment.userId)
       .select('mobile name')
-      .then((user) => {
+      .then(user => {
         if (!user?.mobile) return;
         const labelMap: Record<string, string> = {
           fee_amount: 'Service Fee',
@@ -198,7 +203,7 @@ const success = async (tran_id: string) => {
           remaining_all_amount: 'All Remaining Amount',
         };
         const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
-        const message = `Dear ${user.name}, BDT ${payment.amount} for ${label} received. Txn: ${tran_id} -Smart Tax BD`;
+        const message = `Dear ${user.name}, BDT ${payment.amount} for ${label} received. Smart Tax BD`;
         return sendSMS(user.mobile, message);
       })
       .catch(() => {
@@ -211,7 +216,11 @@ const success = async (tran_id: string) => {
         type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
         title: 'Payment Successful',
         message: `BDT ${payment.amount} received successfully. Transaction: ${tran_id}.`,
-        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+        data: {
+          orderId: payment.orderId,
+          amount: payment.amount,
+          transactionId: tran_id,
+        },
       })
       .catch(() => {});
   }
@@ -239,7 +248,11 @@ const fail = async (tran_id: string) => {
         type: NOTIFICATION_TYPE.PAYMENT_FAILED,
         title: 'Payment Failed',
         message: `Your payment of BDT ${payment.amount} has failed. Please try again.`,
-        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+        data: {
+          orderId: payment.orderId,
+          amount: payment.amount,
+          transactionId: tran_id,
+        },
       })
       .catch(() => {});
   }
@@ -267,7 +280,11 @@ const cancel = async (tran_id: string) => {
         type: NOTIFICATION_TYPE.PAYMENT_CANCELLED,
         title: 'Payment Cancelled',
         message: `Your payment of BDT ${payment.amount} has been cancelled.`,
-        data: { orderId: payment.orderId, amount: payment.amount, transactionId: tran_id },
+        data: {
+          orderId: payment.orderId,
+          amount: payment.amount,
+          transactionId: tran_id,
+        },
       })
       .catch(() => {});
   }
@@ -319,8 +336,117 @@ const getAPaymentByOrderId = async (orderId: string) => {
   return payments;
 };
 
+const recordCashPaymentToDB = async ({
+  orderId,
+  paymentFor,
+}: {
+  orderId: string;
+  paymentFor: IPayment['paymentFor'];
+  userId: string;
+}) => {
+  if (!orderId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Order ID is required');
+  }
+
+  const order = await Tax.findById(orderId);
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  // Guard: never record a bucket that is already paid
+  if (paymentFor === 'fee_amount' && order.is_fee_amount_paid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Fee amount is already paid');
+  }
+  if (paymentFor === 'fee_due_amount' && order.is_fee_due_amount_paid) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Fee due amount is already paid',
+    );
+  }
+  if (paymentFor === 'tax_payable_amount' && order.is_tax_payable_amount_paid) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Tax payable amount is already paid',
+    );
+  }
+  if (
+    paymentFor === 'remaining_all_amount' &&
+    order.is_tax_payable_amount_paid &&
+    order.is_fee_due_amount_paid
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Remaining amount is already paid',
+    );
+  }
+
+  const payableAmount = await resolvePayableAmount(
+    { orderId, userId: order.userId.toString(), paymentFor },
+    order,
+  );
+
+  const tran_id = new Types.ObjectId().toString();
+
+  const payment = await Payment.create({
+    userId: order.userId,
+    orderId: order._id,
+    amount: payableAmount,
+    paymentFor,
+    currency: 'BDT',
+    status: 'completed',
+    transaction_id: tran_id,
+    payment_method: 'cash',
+  });
+
+  const updatedOrder = await Tax.findByIdAndUpdate(
+    order._id,
+    {
+      ...getPaymentsType(paymentFor),
+      total_paid_amount: (order.total_paid_amount || 0) + (payableAmount || 0),
+    },
+    { new: true },
+  );
+
+  // Fire-and-forget SMS — never block or break the flow
+  User.findById(order.userId)
+    .select('mobile name')
+    .then(user => {
+      if (!user?.mobile) return;
+      const labelMap: Record<string, string> = {
+        fee_amount: 'Service Fee',
+        fee_due_amount: 'Due Fee',
+        tax_payable_amount: 'Tax Payable Amount',
+        remaining_all_amount: 'All Remaining Amount',
+      };
+      const label = labelMap[paymentFor] ?? paymentFor;
+      const message = `Dear ${user.name}, BDT ${payableAmount} for ${label} received in cash. Smart Tax BD`;
+      return sendSMS(user.mobile, message);
+    })
+    .catch(() => {});
+
+  notificationService
+    .sendNotification({
+      recipientId: order.userId.toString(),
+      type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+      title: 'Payment Received',
+      message: `BDT ${payableAmount} received in cash. Transaction: ${tran_id}.`,
+      data: {
+        orderId: order._id,
+        amount: payableAmount,
+        transactionId: tran_id,
+      },
+    })
+    .catch(() => {});
+
+  return {
+    payment,
+    tax_order: updatedOrder,
+  };
+};
+
 export const paymentService = {
   inintPaymentToDb,
+  recordCashPaymentToDB,
   getAllPayment,
   getUserPayment,
   getAPaymentByOrderId,
