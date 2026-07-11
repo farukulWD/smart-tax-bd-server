@@ -65,6 +65,21 @@ const cancel = catchAsync(async (req, res) => {
   });
 });
 
+const recordCashPayment = catchAsync(async (req, res) => {
+  const { orderId, paymentFor } = req.body;
+  const result = await paymentService.recordCashPaymentToDB({
+    orderId,
+    paymentFor,
+    userId: req.user.userId,
+  });
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Cash payment recorded successfully',
+    data: result,
+  });
+});
+
 const getAllPayment = catchAsync(async (req, res) => {
   const payments = await paymentService.getAllPayment();
   sendResponse(res, {
@@ -99,6 +114,7 @@ const getAPaymentByOrderId = catchAsync(async (req, res) => {
 
 export const paymentController = {
   initPayment,
+  recordCashPayment,
   getAllPayment,
   getUserPayment,
   getAPaymentByOrderId,
