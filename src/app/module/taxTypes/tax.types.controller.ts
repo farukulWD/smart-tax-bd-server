@@ -4,7 +4,7 @@ import { TaxTypeService } from './tax.types.services';
 import httpStatus from 'http-status';
 
 const createTaxType = catchAsync(async (req, res) => {
-  const result = await TaxTypeService.createTaxTypeToDB(req.body);
+  const result = await TaxTypeService.createTaxTypeToDB(req.body, req.file);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -28,10 +28,7 @@ const getAllTaxTypes = catchAsync(async (req, res) => {
 const updateTaxType = catchAsync(async (req, res) => {
   // req.params.id can be string or string[] so normalize to string
   const id = String(req.params.id);
-  const result = await TaxTypeService.updateTaxTypeInDB(
-    id,
-    req.body
-  );
+  const result = await TaxTypeService.updateTaxTypeInDB(id, req.body, req.file);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
