@@ -2,8 +2,21 @@ import AppError from '../../errors/AppError';
 import { Taxtypes } from './tax.types.interface';
 import httpStatus from 'http-status';
 import taxTypesModel from './tax.types.model';
+import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 
-const createTaxTypeToDB = async (taxType: Taxtypes) => {
+const uploadIcon = async (file: Express.Multer.File) => {
+  const uploadResult = await sendImageToCloudinary(
+    `tax-type-icon-${Date.now()}`,
+    file.path,
+    file.mimetype,
+  );
+  return uploadResult.secure_url as string;
+};
+
+const createTaxTypeToDB = async (
+  taxType: Taxtypes,
+  file?: Express.Multer.File,
+) => {
   if (!taxType.title?.en || !taxType.title?.bn) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -26,6 +39,10 @@ const createTaxTypeToDB = async (taxType: Taxtypes) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type value is required');
   }
 
+  if (file) {
+    taxType.icon = await uploadIcon(file);
+  }
+
   const result = await taxTypesModel.create(taxType);
   return result;
 };
@@ -35,7 +52,11 @@ const getAllTaxTypesFromDB = async () => {
   return result;
 };
 
-const updateTaxTypeInDB = async (id: string, taxType: Taxtypes) => {
+const updateTaxTypeInDB = async (
+  id: string,
+  taxType: Taxtypes,
+  file?: Express.Multer.File,
+) => {
   if (!id) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type id is required');
   }
@@ -43,6 +64,10 @@ const updateTaxTypeInDB = async (id: string, taxType: Taxtypes) => {
   const isExist = await taxTypesModel.findById(id);
   if (!isExist) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type not found');
+  }
+
+  if (file) {
+    taxType.icon = await uploadIcon(file);
   }
 
   const result = await taxTypesModel.findByIdAndUpdate(id, taxType, {
