@@ -39,4 +39,8 @@ const filesSchema = new Schema<Ifile>(
   },
 );
 
+filesSchema.index({ userId: 1, createdAt: -1 });
+filesSchema.index({ orderId: 1, createdAt: -1 });
+filesSchema.index({ createdAt: -1 });
+
 export const Files = model<Ifile>('File', filesSchema);

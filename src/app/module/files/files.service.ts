@@ -66,10 +66,74 @@ const deleteFileFromDB = async (id: string) => {
   return fileData;
 };
 
-const getAllFiles = async () => {
-  const fileData = await Files.find();
+const getAllFiles = async (query: Record<string, unknown>) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-  return fileData;
+  const filter: Record<string, unknown> = {};
+
+  if (query.userId) {
+    if (!Types.ObjectId.isValid(String(query.userId))) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid userId');
+    }
+    filter.userId = new Types.ObjectId(String(query.userId));
+  }
+
+  if (query.orderId) {
+    if (!Types.ObjectId.isValid(String(query.orderId))) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid orderId');
+    }
+    filter.orderId = new Types.ObjectId(String(query.orderId));
+  }
+
+  if (query.type) {
+    filter.type = query.type;
+  }
+
+  if (query.search) {
+    const escaped = String(query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const search = new RegExp(escaped, 'i');
+    filter.$or = [{ name: search }, { type: search }];
+  }
+
+  const [data, total] = await Promise.all([
+    Files.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'taxes',
+          localField: 'orderId',
+          foreignField: '_id',
+          as: 'order',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          pipeline: [{ $project: { password: 0, accessToken: 0 } }],
+          as: 'user',
+        },
+      },
+      {
+        $addFields: {
+          order: { $arrayElemAt: ['$order', 0] },
+          user: { $arrayElemAt: ['$user', 0] },
+        },
+      },
+    ]),
+    Files.countDocuments(filter),
+  ]);
+
+  return {
+    data,
+    meta: { limit, page, total, totalPage: Math.ceil(total / limit) },
+  };
 };
 
 const getSingleFile = async (id: string) => {
@@ -94,6 +158,7 @@ const getSingleFile = async (id: string) => {
         from: 'users',
         localField: 'userId',
         foreignField: '_id',
+        pipeline: [{ $project: { password: 0, accessToken: 0 } }],
         as: 'user',
       },
     },

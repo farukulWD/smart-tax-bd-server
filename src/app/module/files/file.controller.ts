@@ -40,13 +40,14 @@ const deleteFile = catchAsync(async (req, res) => {
 });
 
 const getAllFiles = catchAsync(async (req, res) => {
-  const result = await FileServices.getAllFiles();
+  const result = await FileServices.getAllFiles(req.query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Files fetched successfully',
-    data: result,
+    meta: result.meta,
+    data: result.data,
   });
 });
 
