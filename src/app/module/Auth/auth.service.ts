@@ -148,8 +148,19 @@ const changePassword = async (
 };
 
 const refreshToken = async (token: string) => {
-  // checking if the given token is valid
-  const decoded = verifyToken(token, config.jwt_refresh_secret as string);
+  // checking if the given token is valid.
+  // verifyToken throws a raw jsonwebtoken error, which the global handler turns
+  // into a 500 — clients need a 401 to tell "sign in again" apart from "the
+  // server is broken".
+  let decoded: JwtPayload;
+  try {
+    decoded = verifyToken(token, config.jwt_refresh_secret as string);
+  } catch {
+    throw new AppError(
+      httpStatus.UNAUTHORIZED,
+      'Session expired. Please sign in again.',
+    );
+  }
 
   const { mobile, iat } = decoded;
 
@@ -186,8 +197,17 @@ const refreshToken = async (token: string) => {
     config.jwt_access_expires_in as string,
   );
 
+  // Rotate the refresh token too, so the session's expiry window slides forward
+  // for as long as the user keeps using the app.
+  const newRefreshToken = createToken(
+    jwtPayload,
+    config.jwt_refresh_secret as string,
+    config.jwt_refresh_expires_in as string,
+  );
+
   return {
     accessToken,
+    refreshToken: newRefreshToken,
   };
 };
 
@@ -287,10 +307,10 @@ const resetPassword = async (payload: { resetToken: string; newPassword: string 
   }
 };
 
-const logoutUser = async (email: string) => {
+const logoutUser = async (mobile: string) => {
   await User.findOneAndUpdate(
     {
-      email: email,
+      mobile: mobile,
     },
     {
       accessToken: null,

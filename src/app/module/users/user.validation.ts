@@ -11,7 +11,7 @@ const userValidationSchema = z.object({
     mobile: z.string().min(10, { message: 'Mobile number is required' }),
     password: z
       .string()
-      .min(6, { message: 'Password must be at least 6 characters long' }),
+      .min(4, { message: 'Password must be at least 4 characters long' }),
     email: z.string().email({ message: 'Invalid email address' }).optional(),
   }),
 });

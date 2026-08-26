@@ -1,26 +1,16 @@
 import httpStatus from 'http-status';
-import config from '../../config';
+import AppError from '../../errors/AppError';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { AuthServices } from './auth.service';
+import { REFRESH_TOKEN_COOKIE, refreshCookieOptions } from './auth.utils';
 
 const loginUser = catchAsync(async (req, res) => {
   const result = await AuthServices.loginUser(req.body);
   const { refreshToken, accessToken, user } = result;
 
-  let cookieDomain: string | undefined = undefined;
-
-  if (config.env === 'production') {
-    cookieDomain = '.smarttaxbd.com';
-  }
-
-  res.cookie('refreshToken', refreshToken, {
-    secure: config.env === 'production',
-    httpOnly: true,
-    sameSite: 'strict',
-    domain: cookieDomain,
-    maxAge: 1000 * 60 * 60 * 24 * 365, // 1 year
-  });
+  // The web clients keep using the httpOnly cookie...
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, refreshCookieOptions());
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -28,6 +18,10 @@ const loginUser = catchAsync(async (req, res) => {
     message: 'User is logged in successfully!',
     data: {
       accessToken,
+      // ...while the mobile app keeps its own copy in the device keystore,
+      // because a React Native cookie jar is not durable enough to hold a
+      // session across restarts and OS updates.
+      refreshToken,
       user,
     },
   });
@@ -46,8 +40,23 @@ const changePassword = catchAsync(async (req, res) => {
 });
 
 const refreshToken = catchAsync(async (req, res) => {
-  const { refreshToken } = req.cookies;
-  const result = await AuthServices.refreshToken(refreshToken);
+  // Web sends the cookie, the mobile app sends the token it stored at login.
+  const token: string | undefined =
+    req.body?.refreshToken || req.cookies?.refreshToken;
+
+  if (!token) {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'Refresh token is required!');
+  }
+
+  const result = await AuthServices.refreshToken(token);
+
+  // Rotating on every refresh restarts the 365-day window, so an active user's
+  // session never lapses on its own.
+  res.cookie(
+    REFRESH_TOKEN_COOKIE,
+    result.refreshToken,
+    refreshCookieOptions(),
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -93,7 +102,7 @@ const logoutUser = catchAsync(async (req, res) => {
 
   await AuthServices.logoutUser(mobile as string);
 
-  res.clearCookie('refreshToken');
+  res.clearCookie(REFRESH_TOKEN_COOKIE, refreshCookieOptions(false));
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
