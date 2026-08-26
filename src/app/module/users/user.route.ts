@@ -9,13 +9,18 @@ import {
   verifyRegisterOtpSchema,
   resendRegisterOtpSchema,
 } from './user.validation';
-import { otpSendLimiter, otpVerifyLimiter } from '../../middlewares/rateLimiter';
+import {
+  otpSendLimiter,
+  otpVerifyLimiter,
+  otpIpLimiter,
+} from '../../middlewares/rateLimiter';
 import auth from '../../middlewares/auth';
 
 const router = Router();
 
 router.post(
   '/register',
+  otpIpLimiter,
   otpSendLimiter,
   validateRequest(userValidationSchema),
   UserControllers.createUser
@@ -30,6 +35,7 @@ router.post(
 
 router.post(
   '/resend-otp',
+  otpIpLimiter,
   otpSendLimiter,
   validateRequest(resendRegisterOtpSchema),
   UserControllers.resendRegisterOtp
