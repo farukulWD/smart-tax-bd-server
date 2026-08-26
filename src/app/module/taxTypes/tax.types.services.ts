@@ -3,6 +3,7 @@ import { Taxtypes } from './tax.types.interface';
 import httpStatus from 'http-status';
 import taxTypesModel from './tax.types.model';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
+import { assertFileNamesExist } from '../fileNames/fileName.service';
 
 const uploadIcon = async (file: Express.Multer.File) => {
   const uploadResult = await sendImageToCloudinary(
@@ -39,6 +40,8 @@ const createTaxTypeToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type value is required');
   }
 
+  await assertFileNamesExist(taxType.required_files);
+
   if (file) {
     taxType.icon = await uploadIcon(file);
   }
@@ -48,7 +51,7 @@ const createTaxTypeToDB = async (
 };
 
 const getAllTaxTypesFromDB = async () => {
-  const result = await taxTypesModel.find({});
+  const result = await taxTypesModel.find({}).populate('required_files');
   return result;
 };
 
@@ -66,13 +69,17 @@ const updateTaxTypeInDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type not found');
   }
 
+  await assertFileNamesExist(taxType.required_files);
+
   if (file) {
     taxType.icon = await uploadIcon(file);
   }
 
-  const result = await taxTypesModel.findByIdAndUpdate(id, taxType, {
-    new: true,
-  });
+  const result = await taxTypesModel
+    .findByIdAndUpdate(id, taxType, {
+      new: true,
+    })
+    .populate('required_files');
   return result;
 };
 

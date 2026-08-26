@@ -29,6 +29,12 @@ const taxTypesSchema = new Schema<Taxtypes>({
   icon: {
     type: String,
   },
+  required_files: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'FileName',
+    },
+  ],
   tax_orders_id: [
     {
       type: Schema.Types.ObjectId,

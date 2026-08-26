@@ -18,6 +18,7 @@ const createTaxTypeValidationSchema = z.object({
     }),
     value: taxTypeValueEnum,
     icon: z.string().optional(),
+    required_files: z.array(z.string()).optional(),
     isActive: z.boolean().optional(),
   }),
 });
@@ -29,6 +30,7 @@ const updateTaxTypeValidationSchema = z.object({
     rate: z.number().optional(),
     value: taxTypeValueEnum.optional(),
     icon: z.string().optional(),
+    required_files: z.array(z.string()).optional(),
     isActive: z.boolean().optional(),
   }),
 });

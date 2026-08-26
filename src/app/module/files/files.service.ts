@@ -7,6 +7,7 @@ import { User } from '../users/user.model';
 import { Types } from 'mongoose';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
+import { syncTaxDocumentState } from '../Tax/tax.utils';
 
 const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   if (!file) {
@@ -31,6 +32,10 @@ const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
 
   const fileData = await Files.create({ ...payload, file: secure_url });
 
+  // Keep the order's `documents` cache and `files_upload_pending` flag honest —
+  // without this the file exists but stays invisible to the order endpoints.
+  await syncTaxDocumentState(payload.orderId);
+
   notificationService
     .sendNotification({
       recipientId: payload.userId.toString(),
@@ -52,6 +57,9 @@ const deleteFileFromDB = async (id: string) => {
   const fileData = await Files.findByIdAndDelete(id);
 
   if (fileData) {
+    // Drop the dangling id from the order and re-flag any now-missing document.
+    await syncTaxDocumentState(fileData.orderId);
+
     notificationService
       .sendNotification({
         recipientId: fileData.userId.toString(),

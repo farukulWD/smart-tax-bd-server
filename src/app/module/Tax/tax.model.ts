@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { IncomeSource, ITax } from './tax.interface';
+import { ITax } from './tax.interface';
 import { TAX_TYPE_VALUES } from '../taxTypes/tax.types.interface';
 
 const fee_amount = 1000;
@@ -76,8 +76,10 @@ const taxModel = new Schema<ITax>(
       required: true,
     },
     source_of_income: {
+      // No `enum` here on purpose: income sources are an admin-managed
+      // collection now, so a schema enum would reject any source added after
+      // this deploy. Validated against active rows in `validateStepOneData`.
       type: [String],
-      enum: Object.values(IncomeSource),
       required: true,
     },
     tax_types: {

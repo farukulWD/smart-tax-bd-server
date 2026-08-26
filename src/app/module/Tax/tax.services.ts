@@ -14,6 +14,11 @@ import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 import { TaxTypeValue } from '../taxTypes/tax.types.interface';
+import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
+import {
+  getRequiredDocumentsFromTax,
+  syncTaxDocumentState,
+} from './tax.utils';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -27,114 +32,7 @@ type StepOnePayload = {
   is_self?: boolean;
 };
 
-const COMMON_REQUIRED_DOCUMENTS = [
-  'TIN Certificate',
-  'NID Copy',
-  'Bank Statement',
-];
-
-const INCOME_SOURCE_DOCUMENT_MAP: Partial<Record<IncomeSource, string[]>> = {
-  [IncomeSource.GovtJob]: ['Salary Statement', 'Tax Deduction Copy'],
-  [IncomeSource.PrivateJob]: ['Salary Statement', 'Tax Deduction Copy'],
-  [IncomeSource.Business]: [
-    'Trade License',
-    'Purchase Statement',
-    'Sales or Received Statement',
-    'Profit & Loss Statement',
-    'Balance Sheet',
-  ],
-  [IncomeSource.Rent]: ['Tax Token'],
-  [IncomeSource.Agriculture]: ['Others Documents'],
-  [IncomeSource.FinancialAsset]: [
-    'DPS Certificate',
-    'FDR Certificate',
-    'Sonchoypotro Certificate',
-    'Insurance Certificate',
-    'Share Certificate',
-    'Pension Scheme Certificate',
-  ],
-  [IncomeSource.CapitalGain]: [
-    'Land Purchase Documents',
-    'Flat Purchase Documents',
-    'Vehicle Purchase Documents',
-  ],
-  [IncomeSource.OthersSource]: ['Others Documents'],
-  [IncomeSource.ForignRemitance]: ['Bank Statement'],
-};
-
-const BUSINESS_DOCUMENTS = [
-  'Trade License',
-  'Purchase Statement',
-  'Sales or Received Statement',
-  'Profit & Loss Statement',
-  'Balance Sheet',
-];
-
-const TAX_TYPE_DOCUMENT_MAP: Partial<Record<TaxTypeValue, string[]>> = {
-  income_tax: ['Salary Statement', 'Tax Deduction Copy'],
-  income_tax_government: ['Salary Statement', 'Tax Deduction Copy'],
-  income_tax_non_government: ['Salary Statement', 'Tax Deduction Copy'],
-  business_tax: BUSINESS_DOCUMENTS,
-  sales_tax: BUSINESS_DOCUMENTS,
-  vat: BUSINESS_DOCUMENTS,
-  service_tax: BUSINESS_DOCUMENTS,
-  import_duty: BUSINESS_DOCUMENTS,
-  excise_duty: BUSINESS_DOCUMENTS,
-  customs_duty: BUSINESS_DOCUMENTS,
-  entertainment_tax: BUSINESS_DOCUMENTS,
-  environmental_tax: BUSINESS_DOCUMENTS,
-  house_rental_tax: ['Tax Token'],
-  property_tax: ['Tax Token'],
-  capital_gains_tax: [
-    'Land Purchase Documents',
-    'Flat Purchase Documents',
-    'Vehicle Purchase Documents',
-  ],
-  gift_tax: ['Others Documents'],
-  inheritance_tax: ['Others Documents'],
-  wealth_tax: [
-    'DPS Certificate',
-    'FDR Certificate',
-    'Sonchoypotro Certificate',
-    'Insurance Certificate',
-    'Share Certificate',
-    'Pension Scheme Certificate',
-  ],
-  housewife_tax_return: ['Others Documents'],
-  agriculture_tax_return: ['Others Documents'],
-  non_resident_bangladeshis: ['Bank Statement', 'Others Documents'],
-};
-
-const getRequiredDocumentsFromTax = (taxData: Partial<ITax>) => {
-  const required = new Set<string>(COMMON_REQUIRED_DOCUMENTS);
-  const sources = Array.isArray(taxData.source_of_income)
-    ? taxData.source_of_income
-    : [];
-
-  sources.forEach(source => {
-    (INCOME_SOURCE_DOCUMENT_MAP[source] || []).forEach(doc =>
-      required.add(doc),
-    );
-  });
-
-  const taxTypes = Array.isArray(taxData.tax_types) ? taxData.tax_types : [];
-
-  taxTypes.forEach(type => {
-    (TAX_TYPE_DOCUMENT_MAP[type] || []).forEach(doc => required.add(doc));
-  });
-
-  if (taxData.are_you_get_notice_from_tax_office) {
-    required.add('Notice from Income Tax Office');
-  }
-
-  if (taxData.income_from_partnership_firm || taxData.income_from_ldt_company) {
-    required.add('Balance Sheet');
-  }
-
-  return Array.from(required);
-};
-
-const validateStepOneData = (taxData: StepOnePayload) => {
+const validateStepOneData = async (taxData: StepOnePayload) => {
   if (!taxData) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax data is required');
   }
@@ -171,6 +69,26 @@ const validateStepOneData = (taxData: StepOnePayload) => {
   if (!tax_year) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
+
+  // The Tax schema no longer carries an income-source enum, so the catalog is
+  // what decides which values are acceptable.
+  if (hasIncomeSource) {
+    const known = await IncomeSourceModel.find({
+      value: { $in: source_of_income },
+      isActive: true,
+    }).select('value');
+    const knownValues = new Set(known.map(source => source.value));
+    const unknown = (source_of_income as string[]).filter(
+      source => !knownValues.has(source),
+    );
+
+    if (unknown.length) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Unknown income source: ${unknown.join(', ')}`,
+      );
+    }
+  }
 };
 
 const assertTaxOrderOwnership = async (taxId: string, userId: string) => {
@@ -198,7 +116,7 @@ const createTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
-  validateStepOneData(taxData);
+  await validateStepOneData(taxData);
 
   const payload = {
     ...taxData,
@@ -208,7 +126,7 @@ const createTaxStepOneToDB = async (
   };
 
   const result = await Tax.create(payload);
-  const required_documents = getRequiredDocumentsFromTax(result);
+  const required_documents = await getRequiredDocumentsFromTax(result);
 
   notificationService
     .sendNotification({
@@ -235,7 +153,7 @@ const updateTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
-  validateStepOneData(taxData);
+  await validateStepOneData(taxData);
   await assertTaxOrderOwnership(taxId, userId);
 
   const result = await Tax.findByIdAndUpdate(
@@ -248,7 +166,7 @@ const updateTaxStepOneToDB = async (
     { new: true },
   );
 
-  const required_documents = getRequiredDocumentsFromTax(result as ITax);
+  const required_documents = await getRequiredDocumentsFromTax(result as ITax);
 
   return {
     tax_order: result,
@@ -284,7 +202,7 @@ const uploadTaxStepTwoDocumentsToDB = async (
     );
   }
 
-  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+  const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
 
   const validDocumentIds = documentIds.filter(id => Types.ObjectId.isValid(id));
   if (validDocumentIds.length !== documentIds.length) {
@@ -316,14 +234,17 @@ const uploadTaxStepTwoDocumentsToDB = async (
   }
 
   const updatePayload: Record<string, unknown> = {
-    documents: validDocumentIds,
-    current_step: 2,
-    status: 'documents_uploaded',
+    // Merge, never replace: an admin may have uploaded a document on the user's
+    // behalf before they reached this step, and that file must not be dropped.
+    $addToSet: { documents: { $each: validDocumentIds } },
+    $set: {
+      current_step: 2,
+      status: 'documents_uploaded',
+      ...(taxOrder.files_upload_pending
+        ? { files_upload_pending: false }
+        : {}),
+    },
   };
-
-  if (taxOrder.files_upload_pending) {
-    updatePayload.files_upload_pending = false;
-  }
 
   const result = await Tax.findByIdAndUpdate(taxId, updatePayload, {
     new: true,
@@ -362,7 +283,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
       userId: taxOrder.userId,
     }).select('type');
     const uploadedTypes = new Set(files.map(file => file.type));
-    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
     const missingDocuments = requiredDocuments.filter(
       doc => !uploadedTypes.has(doc),
     );
@@ -419,7 +340,7 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
       userId: taxOrder.userId,
     }).select('type');
     const uploadedTypes = new Set(files.map(file => file.type));
-    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
     const missingDocuments = requiredDocuments.filter(
       doc => !uploadedTypes.has(doc),
     );
@@ -572,15 +493,27 @@ const markTaxOrderPaymentFailedToDB = async (transactionId: string) => {
 };
 
 const getTaxOrderByIdFromDB = async (taxId: string) => {
+  if (!Types.ObjectId.isValid(taxId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid tax order ID');
+  }
+
   const taxOrder = await Tax.findById(taxId).populate('documents');
   if (!taxOrder) {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
-  const required_documents = getRequiredDocumentsFromTax(taxOrder);
+
+  // `uploaded_files` is the authoritative list — `documents` is a cache that can
+  // still be stale on orders created before it was kept in sync. Not paginated:
+  // an order holds a handful of files, and a page limit would silently hide some.
+  const [required_documents, uploaded_files] = await Promise.all([
+    getRequiredDocumentsFromTax(taxOrder),
+    Files.find({ orderId: taxOrder._id }).sort({ createdAt: -1 }),
+  ]);
 
   return {
     tax_order: taxOrder,
     required_documents,
+    uploaded_files,
   };
 };
 
@@ -652,7 +585,7 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     { new: true },
   );
 
-  const required_documents = getRequiredDocumentsFromTax(result as ITax);
+  const required_documents = await getRequiredDocumentsFromTax(result as ITax);
 
   if (result) {
     notificationService
@@ -719,27 +652,8 @@ const adminUploadDocumentForUserToDB = async (
     orderId: taxId,
   });
 
-  await Tax.findByIdAndUpdate(taxId, {
-    $addToSet: { documents: fileData._id },
-  });
-
-  const allFiles = await Files.find({
-    orderId: taxId,
-    userId: taxOrder.userId,
-  }).select('type');
-
-  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
-  const uploadedTypes = new Set(allFiles.map(f => f.type));
-  const missingDocuments = requiredDocuments.filter(
-    doc => !uploadedTypes.has(doc),
-  );
-
-  if (missingDocuments.length === 0 && taxOrder.files_upload_pending) {
-    await Tax.findByIdAndUpdate(taxId, {
-      files_upload_pending: false,
-      status: 'documents_uploaded',
-    });
-  }
+  const missingDocuments =
+    (await syncTaxDocumentState(taxId))?.missing_documents ?? [];
 
   return {
     file: fileData,
