@@ -2,11 +2,14 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-RUN npm install -g pnpm
+# Pin pnpm so a new major (e.g. pnpm 11 strict dep builds) cannot break CI
+RUN npm install -g pnpm@11.24.0
 
-# Copy manifest first to leverage Docker cache
-COPY package.json ./
-RUN pnpm install
+# Copy manifests first to leverage Docker cache.
+# pnpm-workspace.yaml carries `allowBuilds` (approved dependency build scripts);
+# without it pnpm >=11 fails with ERR_PNPM_IGNORED_BUILDS.
+COPY package.json pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the app and build
 COPY . .
@@ -17,11 +20,11 @@ FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11.24.0
 
 # Install production dependencies only
-COPY package.json ./
-RUN pnpm install --prod
+COPY package.json pnpm-workspace.yaml ./
+RUN pnpm install --prod --frozen-lockfile
 
 # Copy the build output from the build stage
 COPY --from=build /app/dist ./dist
