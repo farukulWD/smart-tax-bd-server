@@ -58,8 +58,17 @@ const auth = (...requiredRoles: TUserRole[]) => {
       throw new AppError(httpStatus.FORBIDDEN, 'This user is inactive ! !');
     }
 
-    if (requiredRoles && !requiredRoles.includes(role)) {
-      throw new AppError(httpStatus.UNAUTHORIZED, 'You are not authorized !');
+    // A role the route does not allow is a permission problem, not an
+    // authentication one. Answering it with 401 told clients the token was
+    // stale, so they refreshed, retried with a token carrying the same role,
+    // got 401 again and signed the user out — a loop that left mobile screens
+    // loading forever. 403 says the credentials are fine and re-authenticating
+    // will not help.
+    if (requiredRoles.length && !requiredRoles.includes(role)) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'You do not have permission to access this resource.',
+      );
     }
 
     req.user = decoded as JwtPayload & { role: string };
