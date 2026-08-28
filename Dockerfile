@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS build
+FROM node:22.23.2-alpine AS build
 WORKDIR /app
 
 # Pin pnpm so a new major (e.g. pnpm 11 strict dep builds) cannot break CI
@@ -16,7 +16,7 @@ COPY . .
 RUN pnpm run build
 
 # Stage 2: Run
-FROM node:20-alpine
+FROM node:22.23.2-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
