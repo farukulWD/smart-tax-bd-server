@@ -1,5 +1,6 @@
 import { Document, Schema, Types } from 'mongoose';
 import { TaxTypeValue } from '../taxTypes/tax.types.interface';
+import { IAppliedCoupon } from '../coupons/coupon.interface';
 
 // define the income source enum
 export enum IncomeSource {
@@ -61,6 +62,8 @@ export interface ITax extends Document {
   tax_paid_date?: Date;
   total_amount: number;
   total_paid_amount: number;
+  /** Frozen coupon snapshot; absent when no coupon is applied. */
+  applied_coupon?: IAppliedCoupon;
   files_upload_pending: boolean;
   createdAt?: Date;
   updatedAt?: Date;

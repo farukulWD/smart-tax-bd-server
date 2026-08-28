@@ -1,6 +1,7 @@
 import { Schema, model } from 'mongoose';
 import { ITax } from './tax.interface';
 import { TAX_TYPE_VALUES } from '../taxTypes/tax.types.interface';
+import { DISCOUNT_TYPES } from '../coupons/coupon.interface';
 
 const fee_amount = 1000;
 
@@ -138,6 +139,32 @@ const taxModel = new Schema<ITax>(
     files_upload_pending: {
       type: Boolean,
       default: false,
+    },
+    // Snapshot, not a `ref` lookup: editing or deleting a coupon must never
+    // reprice an order that was already placed under it. `discount_amount` is
+    // the only field the money math reads — see `getPayableFeeAmount`.
+    applied_coupon: {
+      couponId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Coupon',
+      },
+      code: {
+        type: String,
+      },
+      discountType: {
+        type: String,
+        enum: DISCOUNT_TYPES,
+      },
+      discountValue: {
+        type: Number,
+      },
+      discount_amount: {
+        type: Number,
+        default: 0,
+      },
+      applied_at: {
+        type: Date,
+      },
     },
   },
   {

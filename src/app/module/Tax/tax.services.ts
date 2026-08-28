@@ -1,5 +1,6 @@
 import AppError from '../../errors/AppError';
 import { IncomeSource, ITax, IPersonalInformation } from './tax.interface';
+import { IAppliedCoupon } from '../coupons/coupon.interface';
 import httpStatus from 'http-status';
 import { Tax } from './tax.model';
 import { Types } from 'mongoose';
@@ -16,9 +17,12 @@ import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 import { TaxTypeValue } from '../taxTypes/tax.types.interface';
 import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
 import {
+  getPayableFeeAmount,
   getRequiredDocumentsFromTax,
   syncTaxDocumentState,
 } from './tax.utils';
+import { CouponService } from '../coupons/coupon.service';
+import { calculateCouponDiscount } from '../coupons/coupon.utils';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -296,6 +300,58 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     }
   }
 
+  // A coupon can wipe the fee out entirely. No gateway can charge zero, so
+  // settle the order here instead of calling `inintPaymentToDb` (which throws
+  // on a non-positive amount) and tell the client not to redirect.
+  const payableFee = getPayableFeeAmount(taxOrder);
+  if (payableFee <= 0) {
+    const tran_id = new Types.ObjectId().toString();
+
+    await Payment.create({
+      userId,
+      orderId: taxOrder._id,
+      amount: 0,
+      paymentFor: 'fee_amount',
+      currency: 'BDT',
+      status: 'completed',
+      transaction_id: tran_id,
+      payment_method: 'coupon',
+    });
+
+    const settledOrder = await Tax.findByIdAndUpdate(
+      taxOrder._id,
+      {
+        current_step: 3,
+        status: 'order_placed',
+        total_amount: 0,
+        total_paid_amount: 0,
+        ...getPaymentsType('fee_amount'),
+      },
+      { new: true },
+    );
+
+    notificationService
+      .sendNotification({
+        recipientId: userId,
+        type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
+        title: 'Tax Order Placed',
+        message:
+          'Your tax order has been placed. The coupon covered the full service fee, so nothing is due.',
+        data: {
+          orderId: taxOrder._id,
+          transactionId: tran_id,
+          amount: 0,
+        },
+      })
+      .catch(() => {});
+
+    return {
+      gatewayPageURL: null,
+      paid: true,
+      tax_order: settledOrder,
+    };
+  }
+
   const paymentData: IPaymentDataForInit = {
     orderId: taxId,
     userId,
@@ -313,6 +369,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
 
   return {
     gatewayPageURL,
+    paid: false,
   };
 };
 
@@ -353,14 +410,15 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
     }
   }
 
-  const feeAmount = Number(taxOrder.fee_amount || 0);
+  // Coupon-discounted fee, not the list fee.
+  const payableFee = getPayableFeeAmount(taxOrder);
   const tran_id = new Types.ObjectId().toString();
 
   // // Record the transaction so it stays visible in the admin payments list
   // await Payment.create({
   //   userId,
   //   orderId: taxOrder._id,
-  //   amount: feeAmount,
+  //   amount: payableFee,
   //   paymentFor: 'fee_amount',
   //   currency: 'BDT',
   //   status: 'payment_pending',
@@ -368,14 +426,18 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
   //   payment_method: 'manual_bkash',
   // });
 
+  // A coupon covering the whole fee leaves nothing for the author to collect,
+  // so the order is placed as settled rather than parked in `payment_pending`.
+  const isFullyDiscounted = payableFee <= 0;
+
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
       current_step: 3,
-      status: 'payment_pending',
-      total_amount: feeAmount,
+      status: isFullyDiscounted ? 'order_placed' : 'payment_pending',
+      total_amount: payableFee,
       total_paid_amount: 0,
-      is_fee_amount_paid: false,
+      is_fee_amount_paid: isFullyDiscounted,
     },
     { new: true },
   );
@@ -385,12 +447,13 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
       recipientId: userId,
       type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
       title: 'Tax Order Placed',
-      message:
-        'Your tax order has been placed. The author will contact you for payment.',
+      message: isFullyDiscounted
+        ? 'Your tax order has been placed. The coupon covered the full service fee, so nothing is due.'
+        : 'Your tax order has been placed. The author will contact you for payment.',
       data: {
         orderId: taxOrder._id,
         transactionId: tran_id,
-        amount: feeAmount,
+        amount: payableFee,
       },
     })
     .catch(() => {});
@@ -427,15 +490,15 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
 
-  const feeAmount = Number(taxOrder.fee_amount || 0);
+  const payableFee = getPayableFeeAmount(taxOrder);
 
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
       current_step: 3,
       status: 'order_placed',
-      total_amount: feeAmount,
-      total_paid_amount: feeAmount,
+      total_amount: payableFee,
+      total_paid_amount: payableFee,
       ...getPaymentsType(payment.paymentFor),
     },
     { new: true },
@@ -545,7 +608,10 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     taxData.fee_due_amount !== taxOrder.fee_due_amount &&
     taxOrder?.is_fee_due_amount_paid
   ) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Fee due amount is already paid');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Fee due amount is already paid',
+    );
   }
 
   if (
@@ -567,8 +633,10 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     taxData.fee_due_amount !== undefined ||
     taxData.tax_payable_amount !== undefined;
 
+  // Coupon-discounted fee, so an admin edit does not quietly restore the full
+  // service fee on a discounted order.
   const total_amount =
-    (taxOrder.fee_amount ?? 0) + fee_due_amount + tax_payable_amount;
+    getPayableFeeAmount(taxOrder) + fee_due_amount + tax_payable_amount;
 
   // Respect an explicitly chosen status; only fall back to 'payment_pending'
   // when amounts changed and no status was sent.
@@ -662,6 +730,111 @@ const adminUploadDocumentForUserToDB = async (
   };
 };
 
+/** Orders past the point where the service fee is settled reject coupon edits. */
+const assertCouponEditable = (taxOrder: ITax, userId: string) => {
+  if (String(taxOrder.userId) !== String(userId)) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not allowed to modify this order',
+    );
+  }
+
+  if (
+    taxOrder.is_fee_amount_paid ||
+    taxOrder.status === 'order_placed' ||
+    taxOrder.status === 'completed'
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'A coupon cannot be changed once the service fee is settled',
+    );
+  }
+};
+
+/** `total_amount` after a coupon change, using the same formula as the admin edit. */
+const recomputeTotalAmount = (
+  taxOrder: ITax,
+  appliedCoupon: IAppliedCoupon | undefined,
+) =>
+  getPayableFeeAmount({
+    ...taxOrder.toObject(),
+    applied_coupon: appliedCoupon,
+  }) +
+  Number(taxOrder.fee_due_amount || 0) +
+  Number(taxOrder.tax_payable_amount || 0);
+
+const applyCouponToTaxOrderToDB = async (
+  userId: string,
+  taxId: string,
+  code: string,
+) => {
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  assertCouponEditable(taxOrder, userId);
+
+  const coupon = await CouponService.validateCouponByCode(code);
+
+  const discountAmount = calculateCouponDiscount(coupon, taxOrder.fee_amount);
+  if (discountAmount <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This coupon does not reduce the service fee for this order',
+    );
+  }
+
+  // Frozen snapshot: a later edit or deletion of the coupon must not reprice
+  // this order.
+  const appliedCoupon: IAppliedCoupon = {
+    couponId: coupon._id as Types.ObjectId,
+    code: coupon.code,
+    discountType: coupon.discountType,
+    discountValue: coupon.discountValue,
+    discount_amount: discountAmount,
+    applied_at: new Date(),
+  };
+
+  const result = await Tax.findByIdAndUpdate(
+    taxOrder._id,
+    {
+      applied_coupon: appliedCoupon,
+      total_amount: recomputeTotalAmount(taxOrder, appliedCoupon),
+    },
+    { new: true },
+  );
+
+  return { tax_order: result };
+};
+
+const removeCouponFromTaxOrderInDB = async (userId: string, taxId: string) => {
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  assertCouponEditable(taxOrder, userId);
+
+  if (!taxOrder.applied_coupon?.code) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'No coupon is applied to this order',
+    );
+  }
+
+  const result = await Tax.findByIdAndUpdate(
+    taxOrder._id,
+    {
+      $unset: { applied_coupon: 1 },
+      $set: { total_amount: recomputeTotalAmount(taxOrder, undefined) },
+    },
+    { new: true },
+  );
+
+  return { tax_order: result };
+};
+
 export const TaxService = {
   createTaxStepOneToDB,
   updateTaxStepOneToDB,
@@ -675,4 +848,6 @@ export const TaxService = {
   getAllTaxOrdersFromDB,
   updateTaxOrderToDB,
   adminUploadDocumentForUserToDB,
+  applyCouponToTaxOrderToDB,
+  removeCouponFromTaxOrderInDB,
 };

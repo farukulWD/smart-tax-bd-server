@@ -138,3 +138,22 @@ export const syncTaxDocumentState = async (
 
   return { missing_documents: missingDocuments };
 };
+
+/**
+ * The service fee a customer actually owes, after any applied coupon.
+ *
+ * The single source of truth for the discounted fee. `total_amount` is
+ * recomputed from `fee_amount` in three different places in `tax.services`
+ * (manual placement, gateway success, admin edit) and the payable amount in
+ * `payment.service.resolvePayableAmount` — every one of them must call this, or
+ * that path silently charges the undiscounted fee.
+ *
+ * Lives here rather than in `coupons/` so `payment.service` can reuse it
+ * without an import cycle (it already imports from `Tax/tax.constant`).
+ */
+export const getPayableFeeAmount = (order: Partial<ITax>): number =>
+  Math.max(
+    0,
+    Number(order?.fee_amount || 0) -
+      Number(order?.applied_coupon?.discount_amount || 0),
+  );
