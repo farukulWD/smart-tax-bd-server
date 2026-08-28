@@ -19,11 +19,25 @@ const auth = (...requiredRoles: TUserRole[]) => {
 
     // console.log(token)
 
-    // checking if the given token is valid
-    const decoded = jwt.verify(
-      token,
-      config.jwt_access_secret as string,
-    ) as JwtPayload;
+    // checking if the given token is valid.
+    // Left unwrapped, an expired token throws a raw TokenExpiredError that the
+    // global handler reports as a 500, so clients cannot tell an expired
+    // session apart from a server fault and never trigger a refresh.
+    let decoded: JwtPayload;
+    try {
+      decoded = jwt.verify(
+        token,
+        config.jwt_access_secret as string,
+      ) as JwtPayload;
+    } catch (error) {
+      const expired = (error as Error)?.name === 'TokenExpiredError';
+      throw new AppError(
+        httpStatus.UNAUTHORIZED,
+        expired
+          ? 'Session expired. Please sign in again.'
+          : 'You are not authorized!',
+      );
+    }
 
     const { role, userId } = decoded;
 

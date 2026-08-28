@@ -17,8 +17,10 @@ export default {
   bcrypt_salt_rounds: process.env.SALT,
   jwt_access_secret: process.env.JWT_ACCESS_SECRET,
   jwt_refresh_secret: process.env.JWT_REFRESH_SECRET,
-  jwt_access_expires_in: process.env.JWT_ACCESS_EXPIRES_IN,
-  jwt_refresh_expires_in: process.env.JWT_REFRESH_EXPIRES_IN,
+  // Defaults matter: with an undefined `expiresIn`, jsonwebtoken mints a token
+  // that never expires.
+  jwt_access_expires_in: process.env.JWT_ACCESS_EXPIRES_IN || '10d',
+  jwt_refresh_expires_in: process.env.JWT_REFRESH_EXPIRES_IN || '365d',
   cloudinary_cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   cloudinary_api_key: process.env.CLOUDINARY_API_KEY,
   cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET,

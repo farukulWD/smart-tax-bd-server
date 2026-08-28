@@ -23,7 +23,7 @@ router.delete(
 );
 router.get(
   '/get-all-files',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
   FileController.getAllFiles
 );
 router.get(

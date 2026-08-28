@@ -13,16 +13,27 @@ const changePasswordValidationSchema = z.object({
     oldPassword: z.string({
       required_error: 'Old password is required',
     }),
-    newPassword: z.string({ required_error: 'Password is required' }),
+    newPassword: z
+      .string({ required_error: 'Password is required' })
+      .min(4, { message: 'Password must be at least 4 characters long' }),
   }),
 });
 
+// Web sends the refresh token as an httpOnly cookie, the mobile app sends it in
+// the body. Presence is enforced in the controller so this stays a plain
+// ZodObject — validateRequest is typed `AnyZodObject` and a `.refine()` here
+// would widen it to ZodEffects.
 const refreshTokenValidationSchema = z.object({
-  cookies: z.object({
-    refreshToken: z.string({
-      required_error: 'Refresh token is required!',
-    }),
-  }),
+  body: z
+    .object({
+      refreshToken: z.string().optional(),
+    })
+    .optional(),
+  cookies: z
+    .object({
+      refreshToken: z.string().optional(),
+    })
+    .optional(),
 });
 
 const forgetPasswordValidationSchema = z.object({
@@ -41,7 +52,9 @@ const verifyForgotOTPValidationSchema = z.object({
 const resetPasswordValidationSchema = z.object({
   body: z.object({
     resetToken: z.string({ required_error: 'Reset token is required!' }),
-    newPassword: z.string({ required_error: 'New password is required!' }),
+    newPassword: z
+      .string({ required_error: 'New password is required!' })
+      .min(4, { message: 'Password must be at least 4 characters long' }),
   }),
 });
 

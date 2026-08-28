@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+
 export interface LocalizedText {
   en: string;
   bn: string;
@@ -35,6 +37,8 @@ export interface Taxtypes {
   rate: number;
   value: TaxTypeValue;
   icon?: string;
+  /** File names (documents) a user must upload when ordering this tax type. */
+  required_files?: Types.ObjectId[];
   tax_orders_id?: string[];
   description: LocalizedText;
   isActive: boolean;

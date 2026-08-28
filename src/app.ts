@@ -9,6 +9,13 @@ import httpStatus from 'http-status';
 
 const app: Application = express();
 
+// nginx proxies to 127.0.0.1:5000, so without this every request looks like it
+// came from the loopback address. Anything keyed on the client IP — the OTP
+// rate limiters chief among them — would then share one bucket for all users.
+// `1` = trust exactly one proxy hop (nginx), so X-Forwarded-For cannot be spoofed
+// by the client.
+app.set('trust proxy', 1);
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',

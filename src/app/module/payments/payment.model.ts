@@ -42,6 +42,11 @@ const paymentSchema = new Schema<IPayment>({
   payment_method: {
     type: String,
   },
+}, {
+  // Added so payments carry a creation date. Docs written before this change
+  // have none; dashboard pipelines fall back to `{ $toDate: '$_id' }`, which
+  // recovers the real creation time from the ObjectId.
+  timestamps: true,
 });
 
 export const Payment = model<IPayment>('Payment', paymentSchema);

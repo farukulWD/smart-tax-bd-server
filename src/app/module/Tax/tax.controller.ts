@@ -202,6 +202,36 @@ const updateTaxOrder = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const applyCoupon = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.applyCouponToTaxOrderToDB(
+    userId,
+    taxId,
+    String(req.body?.code || ''),
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Coupon applied successfully',
+    data: result,
+  });
+});
+
+const removeCoupon = catchAsync(async (req: Request, res: Response) => {
+  const userId = String(req.user?.userId || '');
+  const taxId = String(req.params.taxId || '');
+  const result = await TaxService.removeCouponFromTaxOrderInDB(userId, taxId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Coupon removed successfully',
+    data: result,
+  });
+});
+
 export const TaxController = {
   createTaxStepOne,
   updateTaxStepOne,
@@ -217,4 +247,6 @@ export const TaxController = {
   getAllTaxOrders,
   updateTaxOrder,
   adminUploadDocumentForUser,
+  applyCoupon,
+  removeCoupon,
 };

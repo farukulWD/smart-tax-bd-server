@@ -1,5 +1,6 @@
 import AppError from '../../errors/AppError';
 import { IncomeSource, ITax, IPersonalInformation } from './tax.interface';
+import { IAppliedCoupon } from '../coupons/coupon.interface';
 import httpStatus from 'http-status';
 import { Tax } from './tax.model';
 import { Types } from 'mongoose';
@@ -14,6 +15,14 @@ import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
 import { TaxTypeValue } from '../taxTypes/tax.types.interface';
+import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
+import {
+  getPayableFeeAmount,
+  getRequiredDocumentsFromTax,
+  syncTaxDocumentState,
+} from './tax.utils';
+import { CouponService } from '../coupons/coupon.service';
+import { calculateCouponDiscount } from '../coupons/coupon.utils';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -27,114 +36,7 @@ type StepOnePayload = {
   is_self?: boolean;
 };
 
-const COMMON_REQUIRED_DOCUMENTS = [
-  'TIN Certificate',
-  'NID Copy',
-  'Bank Statement',
-];
-
-const INCOME_SOURCE_DOCUMENT_MAP: Partial<Record<IncomeSource, string[]>> = {
-  [IncomeSource.GovtJob]: ['Salary Statement', 'Tax Deduction Copy'],
-  [IncomeSource.PrivateJob]: ['Salary Statement', 'Tax Deduction Copy'],
-  [IncomeSource.Business]: [
-    'Trade License',
-    'Purchase Statement',
-    'Sales or Received Statement',
-    'Profit & Loss Statement',
-    'Balance Sheet',
-  ],
-  [IncomeSource.Rent]: ['Tax Token'],
-  [IncomeSource.Agriculture]: ['Others Documents'],
-  [IncomeSource.FinancialAsset]: [
-    'DPS Certificate',
-    'FDR Certificate',
-    'Sonchoypotro Certificate',
-    'Insurance Certificate',
-    'Share Certificate',
-    'Pension Scheme Certificate',
-  ],
-  [IncomeSource.CapitalGain]: [
-    'Land Purchase Documents',
-    'Flat Purchase Documents',
-    'Vehicle Purchase Documents',
-  ],
-  [IncomeSource.OthersSource]: ['Others Documents'],
-  [IncomeSource.ForignRemitance]: ['Bank Statement'],
-};
-
-const BUSINESS_DOCUMENTS = [
-  'Trade License',
-  'Purchase Statement',
-  'Sales or Received Statement',
-  'Profit & Loss Statement',
-  'Balance Sheet',
-];
-
-const TAX_TYPE_DOCUMENT_MAP: Partial<Record<TaxTypeValue, string[]>> = {
-  income_tax: ['Salary Statement', 'Tax Deduction Copy'],
-  income_tax_government: ['Salary Statement', 'Tax Deduction Copy'],
-  income_tax_non_government: ['Salary Statement', 'Tax Deduction Copy'],
-  business_tax: BUSINESS_DOCUMENTS,
-  sales_tax: BUSINESS_DOCUMENTS,
-  vat: BUSINESS_DOCUMENTS,
-  service_tax: BUSINESS_DOCUMENTS,
-  import_duty: BUSINESS_DOCUMENTS,
-  excise_duty: BUSINESS_DOCUMENTS,
-  customs_duty: BUSINESS_DOCUMENTS,
-  entertainment_tax: BUSINESS_DOCUMENTS,
-  environmental_tax: BUSINESS_DOCUMENTS,
-  house_rental_tax: ['Tax Token'],
-  property_tax: ['Tax Token'],
-  capital_gains_tax: [
-    'Land Purchase Documents',
-    'Flat Purchase Documents',
-    'Vehicle Purchase Documents',
-  ],
-  gift_tax: ['Others Documents'],
-  inheritance_tax: ['Others Documents'],
-  wealth_tax: [
-    'DPS Certificate',
-    'FDR Certificate',
-    'Sonchoypotro Certificate',
-    'Insurance Certificate',
-    'Share Certificate',
-    'Pension Scheme Certificate',
-  ],
-  housewife_tax_return: ['Others Documents'],
-  agriculture_tax_return: ['Others Documents'],
-  non_resident_bangladeshis: ['Bank Statement', 'Others Documents'],
-};
-
-const getRequiredDocumentsFromTax = (taxData: Partial<ITax>) => {
-  const required = new Set<string>(COMMON_REQUIRED_DOCUMENTS);
-  const sources = Array.isArray(taxData.source_of_income)
-    ? taxData.source_of_income
-    : [];
-
-  sources.forEach(source => {
-    (INCOME_SOURCE_DOCUMENT_MAP[source] || []).forEach(doc =>
-      required.add(doc),
-    );
-  });
-
-  const taxTypes = Array.isArray(taxData.tax_types) ? taxData.tax_types : [];
-
-  taxTypes.forEach(type => {
-    (TAX_TYPE_DOCUMENT_MAP[type] || []).forEach(doc => required.add(doc));
-  });
-
-  if (taxData.are_you_get_notice_from_tax_office) {
-    required.add('Notice from Income Tax Office');
-  }
-
-  if (taxData.income_from_partnership_firm || taxData.income_from_ldt_company) {
-    required.add('Balance Sheet');
-  }
-
-  return Array.from(required);
-};
-
-const validateStepOneData = (taxData: StepOnePayload) => {
+const validateStepOneData = async (taxData: StepOnePayload) => {
   if (!taxData) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax data is required');
   }
@@ -171,6 +73,26 @@ const validateStepOneData = (taxData: StepOnePayload) => {
   if (!tax_year) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
+
+  // The Tax schema no longer carries an income-source enum, so the catalog is
+  // what decides which values are acceptable.
+  if (hasIncomeSource) {
+    const known = await IncomeSourceModel.find({
+      value: { $in: source_of_income },
+      isActive: true,
+    }).select('value');
+    const knownValues = new Set(known.map(source => source.value));
+    const unknown = (source_of_income as string[]).filter(
+      source => !knownValues.has(source),
+    );
+
+    if (unknown.length) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Unknown income source: ${unknown.join(', ')}`,
+      );
+    }
+  }
 };
 
 const assertTaxOrderOwnership = async (taxId: string, userId: string) => {
@@ -198,7 +120,7 @@ const createTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
-  validateStepOneData(taxData);
+  await validateStepOneData(taxData);
 
   const payload = {
     ...taxData,
@@ -208,7 +130,7 @@ const createTaxStepOneToDB = async (
   };
 
   const result = await Tax.create(payload);
-  const required_documents = getRequiredDocumentsFromTax(result);
+  const required_documents = await getRequiredDocumentsFromTax(result);
 
   notificationService
     .sendNotification({
@@ -235,7 +157,7 @@ const updateTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
-  validateStepOneData(taxData);
+  await validateStepOneData(taxData);
   await assertTaxOrderOwnership(taxId, userId);
 
   const result = await Tax.findByIdAndUpdate(
@@ -248,7 +170,7 @@ const updateTaxStepOneToDB = async (
     { new: true },
   );
 
-  const required_documents = getRequiredDocumentsFromTax(result as ITax);
+  const required_documents = await getRequiredDocumentsFromTax(result as ITax);
 
   return {
     tax_order: result,
@@ -284,7 +206,7 @@ const uploadTaxStepTwoDocumentsToDB = async (
     );
   }
 
-  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+  const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
 
   const validDocumentIds = documentIds.filter(id => Types.ObjectId.isValid(id));
   if (validDocumentIds.length !== documentIds.length) {
@@ -316,14 +238,17 @@ const uploadTaxStepTwoDocumentsToDB = async (
   }
 
   const updatePayload: Record<string, unknown> = {
-    documents: validDocumentIds,
-    current_step: 2,
-    status: 'documents_uploaded',
+    // Merge, never replace: an admin may have uploaded a document on the user's
+    // behalf before they reached this step, and that file must not be dropped.
+    $addToSet: { documents: { $each: validDocumentIds } },
+    $set: {
+      current_step: 2,
+      status: 'documents_uploaded',
+      ...(taxOrder.files_upload_pending
+        ? { files_upload_pending: false }
+        : {}),
+    },
   };
-
-  if (taxOrder.files_upload_pending) {
-    updatePayload.files_upload_pending = false;
-  }
 
   const result = await Tax.findByIdAndUpdate(taxId, updatePayload, {
     new: true,
@@ -362,7 +287,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
       userId: taxOrder.userId,
     }).select('type');
     const uploadedTypes = new Set(files.map(file => file.type));
-    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
     const missingDocuments = requiredDocuments.filter(
       doc => !uploadedTypes.has(doc),
     );
@@ -373,6 +298,58 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
         `Cannot pay before completing required documents: ${missingDocuments.join(', ')}`,
       );
     }
+  }
+
+  // A coupon can wipe the fee out entirely. No gateway can charge zero, so
+  // settle the order here instead of calling `inintPaymentToDb` (which throws
+  // on a non-positive amount) and tell the client not to redirect.
+  const payableFee = getPayableFeeAmount(taxOrder);
+  if (payableFee <= 0) {
+    const tran_id = new Types.ObjectId().toString();
+
+    await Payment.create({
+      userId,
+      orderId: taxOrder._id,
+      amount: 0,
+      paymentFor: 'fee_amount',
+      currency: 'BDT',
+      status: 'completed',
+      transaction_id: tran_id,
+      payment_method: 'coupon',
+    });
+
+    const settledOrder = await Tax.findByIdAndUpdate(
+      taxOrder._id,
+      {
+        current_step: 3,
+        status: 'order_placed',
+        total_amount: 0,
+        total_paid_amount: 0,
+        ...getPaymentsType('fee_amount'),
+      },
+      { new: true },
+    );
+
+    notificationService
+      .sendNotification({
+        recipientId: userId,
+        type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
+        title: 'Tax Order Placed',
+        message:
+          'Your tax order has been placed. The coupon covered the full service fee, so nothing is due.',
+        data: {
+          orderId: taxOrder._id,
+          transactionId: tran_id,
+          amount: 0,
+        },
+      })
+      .catch(() => {});
+
+    return {
+      gatewayPageURL: null,
+      paid: true,
+      tax_order: settledOrder,
+    };
   }
 
   const paymentData: IPaymentDataForInit = {
@@ -392,6 +369,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
 
   return {
     gatewayPageURL,
+    paid: false,
   };
 };
 
@@ -419,7 +397,7 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
       userId: taxOrder.userId,
     }).select('type');
     const uploadedTypes = new Set(files.map(file => file.type));
-    const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
+    const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
     const missingDocuments = requiredDocuments.filter(
       doc => !uploadedTypes.has(doc),
     );
@@ -432,14 +410,15 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
     }
   }
 
-  const feeAmount = Number(taxOrder.fee_amount || 0);
+  // Coupon-discounted fee, not the list fee.
+  const payableFee = getPayableFeeAmount(taxOrder);
   const tran_id = new Types.ObjectId().toString();
 
   // // Record the transaction so it stays visible in the admin payments list
   // await Payment.create({
   //   userId,
   //   orderId: taxOrder._id,
-  //   amount: feeAmount,
+  //   amount: payableFee,
   //   paymentFor: 'fee_amount',
   //   currency: 'BDT',
   //   status: 'payment_pending',
@@ -447,14 +426,18 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
   //   payment_method: 'manual_bkash',
   // });
 
+  // A coupon covering the whole fee leaves nothing for the author to collect,
+  // so the order is placed as settled rather than parked in `payment_pending`.
+  const isFullyDiscounted = payableFee <= 0;
+
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
       current_step: 3,
-      status: 'payment_pending',
-      total_amount: feeAmount,
+      status: isFullyDiscounted ? 'order_placed' : 'payment_pending',
+      total_amount: payableFee,
       total_paid_amount: 0,
-      is_fee_amount_paid: false,
+      is_fee_amount_paid: isFullyDiscounted,
     },
     { new: true },
   );
@@ -464,12 +447,13 @@ const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
       recipientId: userId,
       type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
       title: 'Tax Order Placed',
-      message:
-        'Your tax order has been placed. The author will contact you for payment.',
+      message: isFullyDiscounted
+        ? 'Your tax order has been placed. The coupon covered the full service fee, so nothing is due.'
+        : 'Your tax order has been placed. The author will contact you for payment.',
       data: {
         orderId: taxOrder._id,
         transactionId: tran_id,
-        amount: feeAmount,
+        amount: payableFee,
       },
     })
     .catch(() => {});
@@ -506,15 +490,15 @@ const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
 
-  const feeAmount = Number(taxOrder.fee_amount || 0);
+  const payableFee = getPayableFeeAmount(taxOrder);
 
   const updatedOrder = await Tax.findByIdAndUpdate(
     taxOrder._id,
     {
       current_step: 3,
       status: 'order_placed',
-      total_amount: feeAmount,
-      total_paid_amount: feeAmount,
+      total_amount: payableFee,
+      total_paid_amount: payableFee,
       ...getPaymentsType(payment.paymentFor),
     },
     { new: true },
@@ -572,15 +556,27 @@ const markTaxOrderPaymentFailedToDB = async (transactionId: string) => {
 };
 
 const getTaxOrderByIdFromDB = async (taxId: string) => {
+  if (!Types.ObjectId.isValid(taxId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid tax order ID');
+  }
+
   const taxOrder = await Tax.findById(taxId).populate('documents');
   if (!taxOrder) {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
   }
-  const required_documents = getRequiredDocumentsFromTax(taxOrder);
+
+  // `uploaded_files` is the authoritative list — `documents` is a cache that can
+  // still be stale on orders created before it was kept in sync. Not paginated:
+  // an order holds a handful of files, and a page limit would silently hide some.
+  const [required_documents, uploaded_files] = await Promise.all([
+    getRequiredDocumentsFromTax(taxOrder),
+    Files.find({ orderId: taxOrder._id }).sort({ createdAt: -1 }),
+  ]);
 
   return {
     tax_order: taxOrder,
     required_documents,
+    uploaded_files,
   };
 };
 
@@ -612,7 +608,10 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     taxData.fee_due_amount !== taxOrder.fee_due_amount &&
     taxOrder?.is_fee_due_amount_paid
   ) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Fee due amount is already paid');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Fee due amount is already paid',
+    );
   }
 
   if (
@@ -634,8 +633,10 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     taxData.fee_due_amount !== undefined ||
     taxData.tax_payable_amount !== undefined;
 
+  // Coupon-discounted fee, so an admin edit does not quietly restore the full
+  // service fee on a discounted order.
   const total_amount =
-    (taxOrder.fee_amount ?? 0) + fee_due_amount + tax_payable_amount;
+    getPayableFeeAmount(taxOrder) + fee_due_amount + tax_payable_amount;
 
   // Respect an explicitly chosen status; only fall back to 'payment_pending'
   // when amounts changed and no status was sent.
@@ -652,7 +653,7 @@ const updateTaxOrderToDB = async (taxId: string, taxData: Partial<ITax>) => {
     { new: true },
   );
 
-  const required_documents = getRequiredDocumentsFromTax(result as ITax);
+  const required_documents = await getRequiredDocumentsFromTax(result as ITax);
 
   if (result) {
     notificationService
@@ -719,33 +720,119 @@ const adminUploadDocumentForUserToDB = async (
     orderId: taxId,
   });
 
-  await Tax.findByIdAndUpdate(taxId, {
-    $addToSet: { documents: fileData._id },
-  });
-
-  const allFiles = await Files.find({
-    orderId: taxId,
-    userId: taxOrder.userId,
-  }).select('type');
-
-  const requiredDocuments = getRequiredDocumentsFromTax(taxOrder);
-  const uploadedTypes = new Set(allFiles.map(f => f.type));
-  const missingDocuments = requiredDocuments.filter(
-    doc => !uploadedTypes.has(doc),
-  );
-
-  if (missingDocuments.length === 0 && taxOrder.files_upload_pending) {
-    await Tax.findByIdAndUpdate(taxId, {
-      files_upload_pending: false,
-      status: 'documents_uploaded',
-    });
-  }
+  const missingDocuments =
+    (await syncTaxDocumentState(taxId))?.missing_documents ?? [];
 
   return {
     file: fileData,
     files_upload_pending: missingDocuments.length > 0,
     missing_documents: missingDocuments,
   };
+};
+
+/** Orders past the point where the service fee is settled reject coupon edits. */
+const assertCouponEditable = (taxOrder: ITax, userId: string) => {
+  if (String(taxOrder.userId) !== String(userId)) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not allowed to modify this order',
+    );
+  }
+
+  if (
+    taxOrder.is_fee_amount_paid ||
+    taxOrder.status === 'order_placed' ||
+    taxOrder.status === 'completed'
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'A coupon cannot be changed once the service fee is settled',
+    );
+  }
+};
+
+/** `total_amount` after a coupon change, using the same formula as the admin edit. */
+const recomputeTotalAmount = (
+  taxOrder: ITax,
+  appliedCoupon: IAppliedCoupon | undefined,
+) =>
+  getPayableFeeAmount({
+    ...taxOrder.toObject(),
+    applied_coupon: appliedCoupon,
+  }) +
+  Number(taxOrder.fee_due_amount || 0) +
+  Number(taxOrder.tax_payable_amount || 0);
+
+const applyCouponToTaxOrderToDB = async (
+  userId: string,
+  taxId: string,
+  code: string,
+) => {
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  assertCouponEditable(taxOrder, userId);
+
+  const coupon = await CouponService.validateCouponByCode(code);
+
+  const discountAmount = calculateCouponDiscount(coupon, taxOrder.fee_amount);
+  if (discountAmount <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This coupon does not reduce the service fee for this order',
+    );
+  }
+
+  // Frozen snapshot: a later edit or deletion of the coupon must not reprice
+  // this order.
+  const appliedCoupon: IAppliedCoupon = {
+    couponId: coupon._id as Types.ObjectId,
+    code: coupon.code,
+    discountType: coupon.discountType,
+    discountValue: coupon.discountValue,
+    discount_amount: discountAmount,
+    applied_at: new Date(),
+  };
+
+  const result = await Tax.findByIdAndUpdate(
+    taxOrder._id,
+    {
+      applied_coupon: appliedCoupon,
+      total_amount: recomputeTotalAmount(taxOrder, appliedCoupon),
+    },
+    { new: true },
+  );
+
+  return { tax_order: result };
+};
+
+const removeCouponFromTaxOrderInDB = async (userId: string, taxId: string) => {
+  const taxOrder = await Tax.findById(taxId);
+  if (!taxOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  assertCouponEditable(taxOrder, userId);
+
+  if (!taxOrder.applied_coupon?.code) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'No coupon is applied to this order',
+    );
+  }
+
+  const result = await Tax.findByIdAndUpdate(
+    taxOrder._id,
+    {
+      $unset: { applied_coupon: 1 },
+      $set: { total_amount: recomputeTotalAmount(taxOrder, undefined) },
+    },
+    { new: true },
+  );
+
+  return { tax_order: result };
 };
 
 export const TaxService = {
@@ -761,4 +848,6 @@ export const TaxService = {
   getAllTaxOrdersFromDB,
   updateTaxOrderToDB,
   adminUploadDocumentForUserToDB,
+  applyCouponToTaxOrderToDB,
+  removeCouponFromTaxOrderInDB,
 };
