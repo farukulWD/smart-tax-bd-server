@@ -9,7 +9,7 @@ RUN npm install -g pnpm@11.24.0
 # pnpm-workspace.yaml carries `allowBuilds` (approved dependency build scripts);
 # without it pnpm >=11 fails with ERR_PNPM_IGNORED_BUILDS.
 COPY package.json pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 # Copy the rest of the app and build
 COPY . .
@@ -24,7 +24,7 @@ RUN npm install -g pnpm@11.24.0
 
 # Install production dependencies only
 COPY package.json pnpm-workspace.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod
 
 # Copy the build output from the build stage
 COPY --from=build /app/dist ./dist
