@@ -13,6 +13,8 @@ import { FaqRoutes } from '../module/faq/faq.route';
 import { HowItWorkRoutes } from '../module/howItWork/howItWork.route';
 import { FileNameRoutes } from '../module/fileNames/fileName.route';
 import { IncomeSourceRoutes } from '../module/incomeSources/incomeSource.route';
+import { CouponRoutes } from '../module/coupons/coupon.route';
+import { DashboardRoutes } from '../module/Dashboard/dashboard.route';
 
 const router = Router();
 
@@ -72,6 +74,14 @@ const moduleRoutes = [
   {
     path: '/income-sources',
     route: IncomeSourceRoutes,
+  },
+  {
+    path: '/coupons',
+    route: CouponRoutes,
+  },
+  {
+    path: '/dashboard',
+    route: DashboardRoutes,
   },
 ];
 

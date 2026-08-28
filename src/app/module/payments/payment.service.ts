@@ -13,6 +13,7 @@ import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { getPaymentsType } from '../Tax/tax.constant';
+import { getPayableFeeAmount } from '../Tax/tax.utils';
 
 const clientUrl = config.client_url;
 
@@ -21,9 +22,16 @@ const resolvePayableAmount = async (
   orderData: ITax,
 ) => {
   if (paymentData.paymentFor === 'fee_amount') {
-    const feeAmount = orderData?.fee_amount || 0;
+    // Charge the coupon-discounted fee, never the list fee.
+    const feeAmount = getPayableFeeAmount(orderData);
     if (feeAmount <= 0) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Fee amount is required');
+      // A 100% coupon leaves nothing to collect. Callers must settle the order
+      // before reaching payment init (see `initTaxStepThreePaymentToDB` and
+      // `placeTaxOrderManuallyToDB`) — a gateway cannot charge zero.
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'There is no service fee left to collect for this order',
+      );
     }
     return feeAmount;
   }

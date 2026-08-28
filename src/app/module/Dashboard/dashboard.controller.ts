@@ -1,13 +1,33 @@
-import { Request, Response } from 'express';
+import httpStatus from 'http-status';
+import catchAsync from '../../utils/catchAsync';
+import sendResponse from '../../utils/sendResponse';
+import { DashboardService } from './dashboard.service';
 
-// Dashboard Controller
-export const getDashboardData = async (req: Request, res: Response) => {
-    try {
-        res.status(200).json({
-            message: "Dashboard data"
-        });
-    } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        res.status(500).json({ message: "Error fetching dashboard data" });
-    }
+const getStats = catchAsync(async (req, res) => {
+  const result = await DashboardService.getStatsFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Dashboard stats fetched successfully',
+    data: result,
+  });
+});
+
+const getCharts = catchAsync(async (req, res) => {
+  // `validateRequest` only parses body and cookies, so `range` is normalized in
+  // the service rather than validated by middleware.
+  const result = await DashboardService.getChartsFromDB(req.query.range);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Dashboard charts fetched successfully',
+    data: result,
+  });
+});
+
+export const DashboardController = {
+  getStats,
+  getCharts,
 };

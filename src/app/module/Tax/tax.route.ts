@@ -37,6 +37,21 @@ router.post(
   TaxController.placeTaxOrderManually,
 );
 
+// Coupon applied to the service fee. Persisted on the order so both the manual
+// and the gateway payment path charge the discounted amount — the client is
+// never trusted to send a discount value.
+router.post(
+  '/:taxId/apply-coupon',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.applyCoupon,
+);
+
+router.delete(
+  '/:taxId/coupon',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  TaxController.removeCoupon,
+);
+
 router.patch(
   '/update-tax-order/:taxId',
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),

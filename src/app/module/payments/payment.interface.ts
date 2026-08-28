@@ -14,6 +14,8 @@ export interface IPayment {
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   transaction_id?: string;
   payment_method?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface IPaymentDataForDb {
