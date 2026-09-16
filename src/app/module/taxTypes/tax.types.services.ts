@@ -46,12 +46,22 @@ const createTaxTypeToDB = async (
     taxType.icon = await uploadIcon(file);
   }
 
+  if (taxType.order === undefined) {
+    const last = await taxTypesModel.findOne().sort({ order: -1 });
+    taxType.order = last ? last.order + 1 : 0;
+  }
+
   const result = await taxTypesModel.create(taxType);
   return result;
 };
 
+// `createdAt` breaks ties for rows created before `order` existed, so they
+// keep a stable position until an admin reorders them.
 const getAllTaxTypesFromDB = async () => {
-  const result = await taxTypesModel.find({}).populate('required_files');
+  const result = await taxTypesModel
+    .find({})
+    .sort({ order: 1, createdAt: 1 })
+    .populate('required_files');
   return result;
 };
 
@@ -83,6 +93,23 @@ const updateTaxTypeInDB = async (
   return result;
 };
 
+const reorderTaxTypesInDB = async (items: { id: string; order: number }[]) => {
+  await taxTypesModel.bulkWrite(
+    items.map(item => ({
+      updateOne: {
+        filter: { _id: item.id },
+        update: { order: item.order },
+      },
+    })),
+  );
+
+  const result = await taxTypesModel
+    .find({})
+    .sort({ order: 1, createdAt: 1 })
+    .populate('required_files');
+  return result;
+};
+
 const deleteTaxTypeFromDB = async (id: string) => {
   if (!id) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type id is required');
@@ -101,5 +128,6 @@ export const TaxTypeService = {
   createTaxTypeToDB,
   getAllTaxTypesFromDB,
   updateTaxTypeInDB,
+  reorderTaxTypesInDB,
   deleteTaxTypeFromDB,
 };
