@@ -19,6 +19,7 @@ const createTaxTypeValidationSchema = z.object({
     value: taxTypeValueEnum,
     icon: z.string().optional(),
     required_files: z.array(z.string()).optional(),
+    order: z.number().optional(),
     isActive: z.boolean().optional(),
   }),
 });
@@ -31,11 +32,26 @@ const updateTaxTypeValidationSchema = z.object({
     value: taxTypeValueEnum.optional(),
     icon: z.string().optional(),
     required_files: z.array(z.string()).optional(),
+    order: z.number().optional(),
     isActive: z.boolean().optional(),
+  }),
+});
+
+const reorderTaxTypeValidationSchema = z.object({
+  body: z.object({
+    items: z
+      .array(
+        z.object({
+          id: z.string(),
+          order: z.number(),
+        }),
+      )
+      .min(1),
   }),
 });
 
 export const TaxTypeValidation = {
   createTaxTypeValidationSchema,
   updateTaxTypeValidationSchema,
+  reorderTaxTypeValidationSchema,
 };

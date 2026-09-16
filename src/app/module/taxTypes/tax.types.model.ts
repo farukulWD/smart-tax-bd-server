@@ -44,6 +44,11 @@ const taxTypesSchema = new Schema<Taxtypes>({
   description: {
     type: localizedTextSchema,
   },
+  order: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
   isActive: {
     type: Boolean,
     default: true,

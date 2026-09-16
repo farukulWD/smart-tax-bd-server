@@ -36,6 +36,12 @@ route.patch(
   validateRequest(TaxTypeValidation.updateTaxTypeValidationSchema),
   TaxTypeController.updateTaxType,
 );
+route.patch(
+  '/reorder',
+  auth(USER_ROLE.superAdmin, USER_ROLE.admin),
+  validateRequest(TaxTypeValidation.reorderTaxTypeValidationSchema),
+  TaxTypeController.reorderTaxTypes,
+);
 route.delete(
   '/delete-tax-type/:id',
   auth(USER_ROLE.superAdmin, USER_ROLE.admin),

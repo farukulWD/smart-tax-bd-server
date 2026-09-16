@@ -38,6 +38,17 @@ const updateTaxType = catchAsync(async (req, res) => {
   });
 });
 
+const reorderTaxTypes = catchAsync(async (req, res) => {
+  const result = await TaxTypeService.reorderTaxTypesInDB(req.body.items);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Tax types reordered successfully',
+    data: result,
+  });
+});
+
 const deleteTaxType = catchAsync(async (req, res) => {
   const id = String(req.params.id);
   const result = await TaxTypeService.deleteTaxTypeFromDB(id);
@@ -54,5 +65,6 @@ export const TaxTypeController = {
   createTaxType,
   getAllTaxTypes,
   updateTaxType,
+  reorderTaxTypes,
   deleteTaxType,
 };

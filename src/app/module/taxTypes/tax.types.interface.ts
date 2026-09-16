@@ -41,6 +41,8 @@ export interface Taxtypes {
   required_files?: Types.ObjectId[];
   tax_orders_id?: string[];
   description: LocalizedText;
+  /** Display position (ascending) on the admin list, client and app. */
+  order: number;
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
