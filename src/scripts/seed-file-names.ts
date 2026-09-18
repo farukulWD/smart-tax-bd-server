@@ -6,10 +6,8 @@
  *    translate-me placeholder, same convention as migrate-taxtype-i18n.ts.
  * 2. Backfills `Taxtype.required_files` for any tax type that has none, using
  *    TAX_TYPE_DOCUMENT_MAP.
- * 3. Upserts an `IncomeSource` row per legacy enum value and backfills its
- *    `required_files` from INCOME_SOURCE_DOCUMENT_MAP.
- * 4. Unsets the retired `FileName.income_sources` field, whose mapping now
- *    lives on the income source itself.
+ * 3. Unsets the retired `FileName.income_sources` field. Income sources are
+ *    gone; documents hang off tax types only.
  *
  * Safe to re-run: existing rows keep their admin edits (only missing rows are
  * inserted), and rows that already have `required_files` are left alone.
@@ -20,12 +18,9 @@ import mongoose, { Types } from 'mongoose';
 import config from '../app/config';
 import { FileName } from '../app/module/fileNames/fileName.model';
 import taxTypesModel from '../app/module/taxTypes/tax.types.model';
-import { IncomeSourceModel } from '../app/module/incomeSources/incomeSource.model';
-import { IncomeSource } from '../app/module/Tax/tax.interface';
 import {
   COMMON_REQUIRED_DOCUMENTS,
   FLAG_DRIVEN_DOCUMENTS,
-  INCOME_SOURCE_DOCUMENT_MAP,
   TAX_TYPE_DOCUMENT_MAP,
   UNMAPPED_DOCUMENTS,
 } from '../app/module/fileNames/fileName.constant';
@@ -34,9 +29,6 @@ const buildFileNames = (): string[] => {
   const names = new Set<string>();
 
   COMMON_REQUIRED_DOCUMENTS.forEach(name => names.add(name));
-  Object.values(INCOME_SOURCE_DOCUMENT_MAP).forEach(list =>
-    (list || []).forEach(name => names.add(name)),
-  );
   Object.values(TAX_TYPE_DOCUMENT_MAP).forEach(list =>
     (list || []).forEach(name => names.add(name)),
   );
@@ -112,57 +104,7 @@ async function seed() {
   }
   console.log(`Tax types — backfilled: ${taxTypesBackfilled}`);
 
-  // ---- 3. income sources ----------------------------------------------------
-  const sourceValues = Object.values(IncomeSource);
-
-  const sourceResult = await IncomeSourceModel.bulkWrite(
-    sourceValues.map((value, index) => ({
-      updateOne: {
-        filter: { value },
-        update: {
-          $setOnInsert: {
-            value,
-            title: { en: value, bn: value },
-            required_files: idsFor(INCOME_SOURCE_DOCUMENT_MAP[value] || []),
-            order: index,
-            isActive: true,
-          },
-        },
-        upsert: true,
-      },
-    })),
-  );
-
-  console.log(
-    `Income sources — inserted: ${
-      sourceResult.upsertedCount
-    }, already present: ${sourceValues.length - sourceResult.upsertedCount}`,
-  );
-
-  // Backfill any pre-existing row an earlier run left without documents.
-  const emptySources = await IncomeSourceModel.find({
-    $or: [
-      { required_files: { $exists: false } },
-      { required_files: { $size: 0 } },
-    ],
-  });
-
-  let sourcesBackfilled = 0;
-  for (const source of emptySources) {
-    const names =
-      INCOME_SOURCE_DOCUMENT_MAP[source.value as IncomeSource] || [];
-    const ids = idsFor(names);
-    if (!ids.length) continue;
-    await IncomeSourceModel.updateOne(
-      { _id: source._id },
-      { required_files: ids },
-    );
-    sourcesBackfilled += 1;
-    console.log(`  ${source.value} → ${names.join(', ')}`);
-  }
-  console.log(`Income sources — backfilled: ${sourcesBackfilled}`);
-
-  // ---- 4. drop the retired FileName.income_sources -------------------------
+  // ---- 3. drop the retired FileName.income_sources -------------------------
   // Straight through the driver: `income_sources` is gone from the schema, so
   // Mongoose's strict mode would silently strip it out of the $unset.
   const unset = await mongoose.connection
