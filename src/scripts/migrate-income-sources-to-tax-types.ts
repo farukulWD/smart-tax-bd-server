@@ -24,7 +24,12 @@
 import mongoose, { Types } from 'mongoose';
 import config from '../app/config';
 
-export const INCOME_SOURCE_TO_TAX_TYPE = new Map<string, string>([
+/**
+ * Income source value → tax type value. `null` means "drop it": the source has
+ * no equivalent tax type, so it is left behind while the order keeps whatever
+ * its other sources map to.
+ */
+export const INCOME_SOURCE_TO_TAX_TYPE = new Map<string, string | null>([
   ['Income from Govt.Job', 'income_tax_government'],
   ['Income from Private Job', 'income_tax_non_government'],
   ['Income from Business', 'business_tax'],
@@ -34,6 +39,9 @@ export const INCOME_SOURCE_TO_TAX_TYPE = new Map<string, string>([
   ['Income from Capital Gain', 'sales_tax'],
   ['Income from Forign Remitance', 'non_resident_bangladeshis'],
   ['BRAC', 'brac'],
+  // No tax type means "other income"; the one order declaring it also declares
+  // four sources that do map, so it keeps those.
+  ['Income from others Source', null],
 ]);
 
 type TTaxTypeRow = {
@@ -171,8 +179,11 @@ export const runMigration = async ({
 
   const missingTargets = Object.keys(sourceCounts)
     .filter(source => INCOME_SOURCE_TO_TAX_TYPE.has(source))
-    .map(source => ({ source, target: INCOME_SOURCE_TO_TAX_TYPE.get(source)! }))
-    .filter(({ target }) => !finalValues.has(target));
+    .map(source => ({ source, target: INCOME_SOURCE_TO_TAX_TYPE.get(source) }))
+    .filter(
+      (entry): entry is { source: string; target: string } =>
+        typeof entry.target === 'string' && !finalValues.has(entry.target),
+    );
 
   const report: TMigrationReport = {
     status: 'dry-run',
@@ -229,9 +240,11 @@ export const runMigration = async ({
                 tax_types: Array.from(
                   new Set([
                     ...(order.tax_types ?? []),
-                    ...sourcesOf(order).map(
-                      source => INCOME_SOURCE_TO_TAX_TYPE.get(source)!,
-                    ),
+                    ...sourcesOf(order)
+                      .map(source => INCOME_SOURCE_TO_TAX_TYPE.get(source))
+                      .filter(
+                        (value): value is string => typeof value === 'string',
+                      ),
                   ]),
                 ),
               },
@@ -313,7 +326,11 @@ const printReport = (report: TMigrationReport) => {
   console.log(`\nOrders carrying source_of_income: ${report.ordersToUpdate}`);
   Object.entries(report.sourceCounts).forEach(([source, orders]) =>
     console.log(
-      `  ${source} (${orders}) → ${INCOME_SOURCE_TO_TAX_TYPE.get(source) ?? 'UNMAPPED'}`,
+      `  ${source} (${orders}) → ${
+        INCOME_SOURCE_TO_TAX_TYPE.has(source)
+          ? (INCOME_SOURCE_TO_TAX_TYPE.get(source) ?? 'DROPPED (no equivalent tax type)')
+          : 'UNMAPPED'
+      }`,
     ),
   );
 

@@ -4,12 +4,15 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import mongoose, { Types } from 'mongoose';
 import { connectTestDatabase, resetTestDatabase } from '../test/setup';
 import {
+  DROPPED_SOURCE_ORDER_ID,
   MIXED_ORDER,
   ORDERS,
   seedCatalog,
+  seedDroppedSourceOrder,
   seedUnmappedOrder,
   seedUsers,
   TAX_TYPES,
+  UNKNOWN_INCOME_SOURCE,
 } from '../test/fixtures';
 import {
   runMigration,
@@ -83,7 +86,7 @@ describe('migrate-income-sources-to-tax-types', () => {
 
     assert.equal(report.status, 'blocked');
     assert.deepEqual(report.unmappedSources, [
-      { value: 'Income from others Source', orders: 1 },
+      { value: UNKNOWN_INCOME_SOURCE, orders: 1 },
     ]);
     assert.deepEqual(await snapshot(), before);
   });
@@ -119,6 +122,23 @@ describe('migrate-income-sources-to-tax-types', () => {
       ordersUpdated: ORDERS.length,
       incomeSourcesDropped: true,
     });
+  });
+
+  it('drops a source that has no equivalent tax type, keeping the rest', async () => {
+    await seedDroppedSourceOrder(userId);
+
+    const report = await runMigration({ apply: true });
+    assert.equal(report.status, 'applied');
+
+    const order = await db()
+      .collection('taxes')
+      .findOne({ _id: DROPPED_SOURCE_ORDER_ID });
+    assert.ok(order);
+    assert.deepEqual(order.tax_types, ['house_rental_tax']);
+    assert.equal('source_of_income' in order, false);
+
+    const { problems } = await verifyMigration();
+    assert.deepEqual(problems, []);
   });
 
   it('verify passes after apply', async () => {
