@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "node --test --test-concurrency=1 -r ts-node/register/transpile-only \"src/**/*.test.ts\"",
+    "seed:local": "ts-node --transpile-only src/test/seed-local.ts"
   },
   "author": "farukulWD",
   "license": "ISC",

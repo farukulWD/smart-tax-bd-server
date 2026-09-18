@@ -12,7 +12,7 @@ import { ReviewRoutes } from '../module/review/review.route';
 import { FaqRoutes } from '../module/faq/faq.route';
 import { HowItWorkRoutes } from '../module/howItWork/howItWork.route';
 import { FileNameRoutes } from '../module/fileNames/fileName.route';
-import { IncomeSourceRoutes } from '../module/incomeSources/incomeSource.route';
+import { LegacyIncomeSourceRoutes } from '../module/taxTypes/legacyIncomeSource.route';
 import { CouponRoutes } from '../module/coupons/coupon.route';
 import { DashboardRoutes } from '../module/Dashboard/dashboard.route';
 
@@ -73,7 +73,8 @@ const moduleRoutes = [
   },
   {
     path: '/income-sources',
-    route: IncomeSourceRoutes,
+    // LEGACY app ≤ v14 — see legacyIncomeSource.route.ts
+    route: LegacyIncomeSourceRoutes,
   },
   {
     path: '/coupons',

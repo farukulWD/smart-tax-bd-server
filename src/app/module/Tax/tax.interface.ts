@@ -1,19 +1,5 @@
 import { Document, Schema, Types } from 'mongoose';
-import { TaxTypeValue } from '../taxTypes/tax.types.interface';
 import { IAppliedCoupon } from '../coupons/coupon.interface';
-
-// define the income source enum
-export enum IncomeSource {
-  GovtJob = 'Income from Govt.Job',
-  PrivateJob = 'Income from Private Job',
-  Business = 'Income from Business',
-  Rent = 'Income from Rent',
-  Agriculture = 'Income from Agriculture',
-  FinancialAsset = 'Income from Financial Asset',
-  CapitalGain = 'Income from Capital Gain',
-  OthersSource = 'Income from others Source',
-  ForignRemitance = 'Income from Forign Remitance',
-}
 
 export type TaxStatus =
   | 'draft'
@@ -48,8 +34,8 @@ export interface ITax extends Document {
   are_you_get_notice_from_tax_office: boolean;
   income_from_partnership_firm: boolean;
   income_from_ldt_company: boolean;
-  source_of_income: Array<IncomeSource>;
-  tax_types: Array<TaxTypeValue>;
+  /** Tax type `value` keys. Validated against the tax type collection. */
+  tax_types: string[];
   tax_year: string;
   documents: Schema.Types.ObjectId[];
   tax_payable_amount: number;

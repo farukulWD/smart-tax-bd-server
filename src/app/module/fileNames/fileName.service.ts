@@ -2,7 +2,6 @@ import httpStatus from 'http-status';
 import { Types } from 'mongoose';
 import AppError from '../../errors/AppError';
 import taxTypesModel from '../taxTypes/tax.types.model';
-import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
 import { IFileName } from './fileName.interface';
 import { FileName } from './fileName.model';
 
@@ -104,17 +103,15 @@ const deleteFileNameFromDB = async (id: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'File name not found');
   }
 
-  // A tax type or income source still asking for this document would silently
-  // lose a required upload slot, so make the admin detach it first.
-  const [taxTypes, incomeSources] = await Promise.all([
-    taxTypesModel.find({ required_files: id }).select('title value'),
-    IncomeSourceModel.find({ required_files: id }).select('title value'),
-  ]);
+  // A tax type still asking for this document would silently lose a required
+  // upload slot, so make the admin detach it first.
+  const taxTypes = await taxTypesModel
+    .find({ required_files: id })
+    .select('title value');
 
-  const referencedBy = [
-    ...taxTypes.map(taxType => taxType.title?.en || taxType.value),
-    ...incomeSources.map(source => source.title?.en || source.value),
-  ];
+  const referencedBy = taxTypes.map(
+    taxType => taxType.title?.en || taxType.value,
+  );
 
   if (referencedBy.length) {
     throw new AppError(

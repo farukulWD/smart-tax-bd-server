@@ -14,6 +14,20 @@ const uploadIcon = async (file: Express.Multer.File) => {
   return uploadResult.secure_url as string;
 };
 
+// Orders store the value, so two rows sharing one cannot be told apart.
+const assertValueIsFree = async (value: string, exceptId?: string) => {
+  const duplicate = await taxTypesModel.findOne({
+    value,
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  });
+  if (duplicate) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `A tax type "${value}" already exists`,
+    );
+  }
+};
+
 const createTaxTypeToDB = async (
   taxType: Taxtypes,
   file?: Express.Multer.File,
@@ -40,6 +54,7 @@ const createTaxTypeToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type value is required');
   }
 
+  await assertValueIsFree(taxType.value);
   await assertFileNamesExist(taxType.required_files);
 
   if (file) {
@@ -65,6 +80,13 @@ const getAllTaxTypesFromDB = async () => {
   return result;
 };
 
+const getActiveTaxTypesFromDB = async () => {
+  const result = await taxTypesModel
+    .find({ isActive: true })
+    .sort({ order: 1, createdAt: 1 });
+  return result;
+};
+
 const updateTaxTypeInDB = async (
   id: string,
   taxType: Taxtypes,
@@ -77,6 +99,10 @@ const updateTaxTypeInDB = async (
   const isExist = await taxTypesModel.findById(id);
   if (!isExist) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax type not found');
+  }
+
+  if (taxType.value && taxType.value !== isExist.value) {
+    await assertValueIsFree(taxType.value, id);
   }
 
   await assertFileNamesExist(taxType.required_files);
@@ -127,6 +153,7 @@ const deleteTaxTypeFromDB = async (id: string) => {
 export const TaxTypeService = {
   createTaxTypeToDB,
   getAllTaxTypesFromDB,
+  getActiveTaxTypesFromDB,
   updateTaxTypeInDB,
   reorderTaxTypesInDB,
   deleteTaxTypeFromDB,

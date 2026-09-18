@@ -1,9 +1,5 @@
 import { model, Schema } from 'mongoose';
-import {
-  LocalizedText,
-  TAX_TYPE_VALUES,
-  Taxtypes,
-} from './tax.types.interface';
+import { LocalizedText, Taxtypes } from './tax.types.interface';
 
 const localizedTextSchema = new Schema<LocalizedText>(
   {
@@ -24,7 +20,8 @@ const taxTypesSchema = new Schema<Taxtypes>({
   value: {
     type: String,
     required: true,
-    enum: [...TAX_TYPE_VALUES],
+    unique: true,
+    trim: true,
   },
   icon: {
     type: String,

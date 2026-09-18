@@ -40,6 +40,5 @@ export interface IDashboardCharts {
   usersOverTime: ITimePoint[];
   revenueOverTime: IRevenuePoint[];
   statusBreakdown: IStatusPoint[];
-  incomeSourceMix: ICategoryPoint[];
   taxTypeMix: ICategoryPoint[];
 }
