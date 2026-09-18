@@ -1,5 +1,5 @@
 import AppError from '../../errors/AppError';
-import { IncomeSource, ITax, IPersonalInformation } from './tax.interface';
+import { ITax, IPersonalInformation } from './tax.interface';
 import { IAppliedCoupon } from '../coupons/coupon.interface';
 import httpStatus from 'http-status';
 import { Tax } from './tax.model';
@@ -14,8 +14,7 @@ import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
-import { TaxTypeValue } from '../taxTypes/tax.types.interface';
-import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
+import taxTypesModel from '../taxTypes/tax.types.model';
 import {
   getPayableFeeAmount,
   getRequiredDocumentsFromTax,
@@ -27,8 +26,10 @@ import { calculateCouponDiscount } from '../coupons/coupon.utils';
 type StepOnePayload = {
   personal_information: IPersonalInformation;
   tax_year: string;
-  source_of_income?: IncomeSource[];
-  tax_types?: TaxTypeValue[];
+  tax_types?: string[];
+  // LEGACY app ≤ v14: it still submits tax type values under this name.
+  // Folded into `tax_types` by `normalizeLegacyStepOne`; never stored.
+  source_of_income?: string[];
   income_from_ldt_company?: boolean;
   income_from_partnership_firm?: boolean;
   are_you_get_notice_from_tax_office?: boolean;
@@ -36,12 +37,31 @@ type StepOnePayload = {
   is_self?: boolean;
 };
 
+/**
+ * LEGACY app ≤ v14 — delete with `legacyIncomeSource.route.ts` once no
+ * installs that old remain. That app lists what `/income-sources` returns
+ * (active tax types) and submits the picked values as `source_of_income`.
+ */
+const normalizeLegacyStepOne = (taxData: StepOnePayload): StepOnePayload => {
+  if (!taxData || !Array.isArray(taxData.source_of_income)) {
+    return taxData;
+  }
+
+  const { source_of_income, ...rest } = taxData;
+  return {
+    ...rest,
+    tax_types: Array.from(
+      new Set([...(rest.tax_types || []), ...source_of_income]),
+    ),
+  };
+};
+
 const validateStepOneData = async (taxData: StepOnePayload) => {
   if (!taxData) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax data is required');
   }
 
-  const { personal_information, source_of_income, tax_year } = taxData;
+  const { personal_information, tax_types, tax_year } = taxData;
   const { name, phone } = personal_information || {};
 
   if (!personal_information) {
@@ -58,15 +78,10 @@ const validateStepOneData = async (taxData: StepOnePayload) => {
     );
   }
 
-  const hasIncomeSource =
-    Array.isArray(source_of_income) && source_of_income.length > 0;
-  const hasTaxTypes =
-    Array.isArray(taxData.tax_types) && taxData.tax_types.length > 0;
-
-  if (!hasIncomeSource && !hasTaxTypes) {
+  if (!Array.isArray(tax_types) || tax_types.length === 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'At least one tax type or source of income is required',
+      'At least one tax type is required',
     );
   }
 
@@ -74,24 +89,19 @@ const validateStepOneData = async (taxData: StepOnePayload) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Tax year is required');
   }
 
-  // The Tax schema no longer carries an income-source enum, so the catalog is
-  // what decides which values are acceptable.
-  if (hasIncomeSource) {
-    const known = await IncomeSourceModel.find({
-      value: { $in: source_of_income },
-      isActive: true,
-    }).select('value');
-    const knownValues = new Set(known.map(source => source.value));
-    const unknown = (source_of_income as string[]).filter(
-      source => !knownValues.has(source),
-    );
+  // The Tax schema carries no tax-type enum, so the catalog is what decides
+  // which values are acceptable.
+  const known = await taxTypesModel
+    .find({ value: { $in: tax_types }, isActive: true })
+    .select('value');
+  const knownValues = new Set(known.map(taxType => taxType.value));
+  const unknown = tax_types.filter(value => !knownValues.has(value));
 
-    if (unknown.length) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Unknown income source: ${unknown.join(', ')}`,
-      );
-    }
+  if (unknown.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Unknown tax type: ${unknown.join(', ')}`,
+    );
   }
 };
 
@@ -120,6 +130,7 @@ const createTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
+  taxData = normalizeLegacyStepOne(taxData);
   await validateStepOneData(taxData);
 
   const payload = {
@@ -157,6 +168,7 @@ const updateTaxStepOneToDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
+  taxData = normalizeLegacyStepOne(taxData);
   await validateStepOneData(taxData);
   await assertTaxOrderOwnership(taxId, userId);
 

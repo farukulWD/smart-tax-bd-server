@@ -1,6 +1,5 @@
 import { Schema, model } from 'mongoose';
 import { ITax } from './tax.interface';
-import { TAX_TYPE_VALUES } from '../taxTypes/tax.types.interface';
 import { DISCOUNT_TYPES } from '../coupons/coupon.interface';
 
 const fee_amount = 1000;
@@ -76,16 +75,11 @@ const taxModel = new Schema<ITax>(
       default: false,
       required: true,
     },
-    source_of_income: {
-      // No `enum` here on purpose: income sources are an admin-managed
-      // collection now, so a schema enum would reject any source added after
-      // this deploy. Validated against active rows in `validateStepOneData`.
-      type: [String],
-      required: true,
-    },
     tax_types: {
+      // No `enum` here on purpose: tax types are an admin-managed collection,
+      // so a schema enum would reject any tax type added after this deploy.
+      // Validated against active rows in `validateStepOneData`.
       type: [String],
-      enum: [...TAX_TYPE_VALUES],
       default: [],
     },
     tax_year: {

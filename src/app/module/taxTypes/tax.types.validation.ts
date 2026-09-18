@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import { TAX_TYPE_VALUES } from './tax.types.interface';
 
-const taxTypeValueEnum = z.enum(TAX_TYPE_VALUES);
+const taxTypeValueSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9_]+$/, {
+    message: 'Value may only use lowercase letters, numbers and _',
+  });
 
 const localizedTextSchema = z.object({
   en: z.string().min(1, { message: 'English text is required' }),
@@ -16,7 +20,7 @@ const createTaxTypeValidationSchema = z.object({
       required_error: 'Rate is required',
       invalid_type_error: 'Rate must be a number',
     }),
-    value: taxTypeValueEnum,
+    value: taxTypeValueSchema,
     icon: z.string().optional(),
     required_files: z.array(z.string()).optional(),
     order: z.number().optional(),
@@ -29,7 +33,7 @@ const updateTaxTypeValidationSchema = z.object({
     title: localizedTextSchema.optional(),
     description: localizedTextSchema.optional(),
     rate: z.number().optional(),
-    value: taxTypeValueEnum.optional(),
+    value: taxTypeValueSchema.optional(),
     icon: z.string().optional(),
     required_files: z.array(z.string()).optional(),
     order: z.number().optional(),

@@ -299,15 +299,11 @@ const getStatusBreakdown = async (start: Date): Promise<IStatusPoint[]> => {
 };
 
 /**
- * `source_of_income` and `tax_types` hold value keys; the human label lives in
- * a lookup collection. Falls back to the raw key when no lookup row matches, so
- * a value retired from the lookup table still charts instead of vanishing.
+ * `tax_types` holds value keys; the human label lives on the tax type. Falls
+ * back to the raw key when no tax type matches, so a value retired from the
+ * catalog still charts instead of vanishing.
  */
-const getCategoryMix = async (
-  start: Date,
-  field: 'source_of_income' | 'tax_types',
-  lookupFrom: 'incomesources' | 'taxtypes',
-): Promise<ICategoryPoint[]> => {
+const getTaxTypeMix = async (start: Date): Promise<ICategoryPoint[]> => {
   const rows = await Tax.aggregate<{ label: string; count: number }>([
     {
       $match: {
@@ -315,13 +311,13 @@ const getCategoryMix = async (
         status: { $nin: [...BREAKDOWN_EXCLUDED_STATUSES] },
       },
     },
-    { $unwind: `$${field}` },
-    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    { $unwind: '$tax_types' },
+    { $group: { _id: '$tax_types', count: { $sum: 1 } } },
     { $sort: { count: -1 } },
     { $limit: MIX_LIMIT },
     {
       $lookup: {
-        from: lookupFrom,
+        from: 'taxtypes',
         localField: '_id',
         foreignField: 'value',
         as: 'meta',
@@ -352,15 +348,13 @@ const getChartsFromDB = async (
     usersOverTime,
     revenueOverTime,
     statusBreakdown,
-    incomeSourceMix,
     taxTypeMix,
   ] = await Promise.all([
     getOrdersOverTime(buckets),
     getUsersOverTime(buckets),
     getRevenueOverTime(buckets),
     getStatusBreakdown(buckets.start),
-    getCategoryMix(buckets.start, 'source_of_income', 'incomesources'),
-    getCategoryMix(buckets.start, 'tax_types', 'taxtypes'),
+    getTaxTypeMix(buckets.start),
   ]);
 
   return {
@@ -369,7 +363,6 @@ const getChartsFromDB = async (
     usersOverTime,
     revenueOverTime,
     statusBreakdown,
-    incomeSourceMix,
     taxTypeMix,
   };
 };

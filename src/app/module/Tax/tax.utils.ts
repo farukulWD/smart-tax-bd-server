@@ -5,10 +5,8 @@ import { Files } from '../files/files.model';
 import { FileName } from '../fileNames/fileName.model';
 import { IFileName } from '../fileNames/fileName.interface';
 import taxTypesModel from '../taxTypes/tax.types.model';
-import { IncomeSourceModel } from '../incomeSources/incomeSource.model';
 import {
   COMMON_REQUIRED_DOCUMENTS,
-  INCOME_SOURCE_DOCUMENT_MAP,
   TAX_TYPE_DOCUMENT_MAP,
 } from '../fileNames/fileName.constant';
 
@@ -20,32 +18,23 @@ const activeFileNames = (files?: IFileName[]) =>
  * Resolves the documents a user must upload for an order.
  *
  * The admin-managed catalog is the source of truth: common documents from
- * `FileName.isCommon`, and per-key documents from each tax type's and income
- * source's `required_files`. The hardcoded maps stay as a per-key fallback so an
- * order never loses its upload slots while the catalog is still being filled in
- * — a tax type or income source with nothing attached falls back to the map
- * entry it had before.
+ * `FileName.isCommon`, and per-key documents from each tax type's
+ * `required_files`. The hardcoded map stays as a per-key fallback so an order
+ * never loses its upload slots while the catalog is still being filled in — a
+ * tax type with nothing attached falls back to the map entry it had before.
  *
  * Lives here rather than in `tax.services` so `files.service` can reuse it
  * without an import cycle.
  */
 export const getRequiredDocumentsFromTax = async (taxData: Partial<ITax>) => {
-  const sources = Array.isArray(taxData.source_of_income)
-    ? taxData.source_of_income
-    : [];
   const taxTypes = Array.isArray(taxData.tax_types) ? taxData.tax_types : [];
 
-  const [commonFiles, taxTypeDocs, sourceDocs] = await Promise.all([
+  const [commonFiles, taxTypeDocs] = await Promise.all([
     FileName.find({ isActive: true, isCommon: true }).sort({ order: 1 }),
     taxTypes.length
       ? taxTypesModel
           .find({ value: { $in: taxTypes } })
           .populate<{ required_files: IFileName[] }>('required_files')
-      : [],
-    sources.length
-      ? IncomeSourceModel.find({ value: { $in: sources } }).populate<{
-          required_files: IFileName[];
-        }>('required_files')
       : [],
   ]);
 
@@ -55,15 +44,6 @@ export const getRequiredDocumentsFromTax = async (taxData: Partial<ITax>) => {
   (commonFromDb.length ? commonFromDb : COMMON_REQUIRED_DOCUMENTS).forEach(
     doc => required.add(doc),
   );
-
-  sources.forEach(source => {
-    const fromDb = activeFileNames(
-      sourceDocs.find(doc => doc.value === source)?.required_files,
-    );
-    (fromDb.length ? fromDb : INCOME_SOURCE_DOCUMENT_MAP[source] || []).forEach(
-      doc => required.add(doc),
-    );
-  });
 
   taxTypes.forEach(type => {
     const fromDb = activeFileNames(
