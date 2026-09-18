@@ -161,6 +161,13 @@ export const ORDERS = [
 export const MIXED_ORDER = ORDERS[ORDERS.length - 1];
 
 export const UNMAPPED_ORDER_ID = new Types.ObjectId();
+export const DROPPED_SOURCE_ORDER_ID = new Types.ObjectId();
+
+/** No tax type stands for this one, so the migration drops it. */
+export const DROPPED_INCOME_SOURCE = 'Income from others Source';
+
+/** Not in the mapping at all, so it blocks the migration. */
+export const UNKNOWN_INCOME_SOURCE = 'Income from Moonlighting';
 
 const collection = (name: string) => mongoose.connection.collection(name);
 
@@ -285,7 +292,21 @@ export const seedUnmappedOrder = async (userId: Types.ObjectId) => {
     orderDoc(userId, {
       _id: UNMAPPED_ORDER_ID,
       tax_types: [],
-      source_of_income: ['Income from others Source'],
+      source_of_income: [UNKNOWN_INCOME_SOURCE],
+    }),
+  );
+};
+
+/**
+ * Mirrors the one production order that declares "others": it keeps the tax
+ * types its other sources map to, and loses only the dropped one.
+ */
+export const seedDroppedSourceOrder = async (userId: Types.ObjectId) => {
+  await collection('taxes').insertOne(
+    orderDoc(userId, {
+      _id: DROPPED_SOURCE_ORDER_ID,
+      tax_types: [],
+      source_of_income: [DROPPED_INCOME_SOURCE, 'Income from Rent'],
     }),
   );
 };
