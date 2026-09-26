@@ -7,8 +7,39 @@ import { sendOTP, verifyOTP } from '../../utils/otpService';
 import { TLoginUser } from './auth.interface';
 import { createToken, verifyToken } from './auth.utils';
 import { User } from '../users/user.model';
+import { TUser } from '../users/user.interface';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
+
+// Create an access/refresh token pair for `user` and store the access token on
+// the account. Shared by login and signup-OTP verification.
+export const issueAuthTokens = async (user: TUser) => {
+  if (!user._id) {
+    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User ID is missing');
+  }
+
+  const jwtPayload = {
+    userId: user._id,
+    mobile: user?.mobile,
+    role: user.role,
+  };
+
+  const accessToken = createToken(
+    jwtPayload,
+    config.jwt_access_secret as string,
+    config.jwt_access_expires_in as string,
+  );
+
+  await User.findByIdAndUpdate(user._id, { accessToken });
+
+  const refreshToken = createToken(
+    jwtPayload,
+    config.jwt_refresh_secret as string,
+    config.jwt_refresh_expires_in as string,
+  );
+
+  return { accessToken, refreshToken };
+};
 
 const loginUser = async (payload: TLoginUser) => {
   const { mobile, email } = payload;
@@ -58,31 +89,9 @@ const loginUser = async (payload: TLoginUser) => {
 
   //create token and sent to the  client
 
-  if (!user._id) {
-    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User ID is missing');
-  }
-
-  const jwtPayload = {
-    userId: user._id,
-    mobile: user?.mobile,
-    role: user.role,
-  };
-
-  const accessToken = createToken(
-    jwtPayload,
-    config.jwt_access_secret as string,
-    config.jwt_access_expires_in as string,
-  );
-
-  await User.findByIdAndUpdate(user._id, { accessToken });
+  const { accessToken, refreshToken } = await issueAuthTokens(user);
   user.password = '';
   user.accessToken = '';
-
-  const refreshToken = createToken(
-    jwtPayload,
-    config.jwt_refresh_secret as string,
-    config.jwt_refresh_expires_in as string,
-  );
 
   return {
     accessToken,
@@ -212,7 +221,7 @@ const refreshToken = async (token: string) => {
 };
 
 // Step 1 — verify account exists then dispatch OTP via SMS
-const forgetPassword = async (mobile: string) => {
+const forgetPassword = async (mobile: string, appHash?: string) => {
   if (!mobile) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -230,7 +239,7 @@ const forgetPassword = async (mobile: string) => {
     throw new AppError(httpStatus.FORBIDDEN, 'This account is inactive');
   }
 
-  await sendOTP(mobile);
+  await sendOTP(mobile, appHash);
 };
 
 // Step 2 — verify OTP; return a short-lived password-reset JWT on success
