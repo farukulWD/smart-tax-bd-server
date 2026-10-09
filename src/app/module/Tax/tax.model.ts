@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import { ITax } from './tax.interface';
 import { DISCOUNT_TYPES } from '../coupons/coupon.interface';
 
-const fee_amount = 1000;
+const fee_amount = 1050;
 
 const taxModel = new Schema<ITax>(
   {
