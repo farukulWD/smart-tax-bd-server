@@ -2,11 +2,16 @@ import httpStatus from 'http-status';
 import { UserServices } from './user.service';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
+import {
+  REFRESH_TOKEN_COOKIE,
+  refreshCookieOptions,
+} from '../Auth/auth.utils';
 
 const createUser = catchAsync(async (req, res) => {
-  const userData = req.body;
+  // appHash only shapes the OTP SMS; it is not a user field.
+  const { appHash, ...userData } = req.body;
 
-  const result = await UserServices.createUserIntoDb(userData);
+  const result = await UserServices.createUserIntoDb(userData, appHash);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -21,6 +26,9 @@ const verifyRegisterOtp = catchAsync(async (req, res) => {
 
   const result = await UserServices.verifyRegisterOTP(mobile, otp);
 
+  // Verification logs the user in, same as /auth/login.
+  res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, refreshCookieOptions());
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -30,9 +38,9 @@ const verifyRegisterOtp = catchAsync(async (req, res) => {
 });
 
 const resendRegisterOtp = catchAsync(async (req, res) => {
-  const { mobile } = req.body;
+  const { mobile, appHash } = req.body;
 
-  const result = await UserServices.resendRegisterOTP(mobile);
+  const result = await UserServices.resendRegisterOTP(mobile, appHash);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

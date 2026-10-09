@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APP_HASH_REGEX } from '../../utils/otpService';
 
 const loginValidationSchema = z.object({
   body: z.object({
@@ -39,6 +40,7 @@ const refreshTokenValidationSchema = z.object({
 const forgetPasswordValidationSchema = z.object({
   body: z.object({
     mobile: z.string({ required_error: 'Mobile number is required!' }),
+    appHash: z.string().regex(APP_HASH_REGEX).optional(),
   }),
 });
 

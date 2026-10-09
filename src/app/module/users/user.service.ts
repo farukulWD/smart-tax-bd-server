@@ -5,10 +5,11 @@ import httpStatus from 'http-status';
 import { TUser } from './user.interface';
 import config from '../../config';
 import { sendOTP, verifyOTP } from '../../utils/otpService';
+import { issueAuthTokens } from '../Auth/auth.service';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 
-const createUserIntoDb = async (payload: TUser) => {
+const createUserIntoDb = async (payload: TUser, appHash?: string) => {
   const existingUser = await User.findOne({
     $or: [
       { mobile: payload.mobile },
@@ -23,7 +24,7 @@ const createUserIntoDb = async (payload: TUser) => {
       existingUser.mobile === payload.mobile &&
       !existingUser.isMobileVerify
     ) {
-      await sendOTP(existingUser.mobile);
+      await sendOTP(existingUser.mobile, appHash);
       return existingUser;
     }
 
@@ -36,7 +37,7 @@ const createUserIntoDb = async (payload: TUser) => {
 
   // Send the verification OTP. If this fails the account exists but stays
   // unverified — the user can re-trigger it via resend / re-register.
-  await sendOTP(newUser.mobile);
+  await sendOTP(newUser.mobile, appHash);
 
   notificationService
     .sendNotification({
@@ -51,7 +52,7 @@ const createUserIntoDb = async (payload: TUser) => {
   return newUser;
 };
 
-// Verify the signup OTP and mark the phone as verified.
+// Verify the signup OTP, mark the phone as verified and log the user in.
 const verifyRegisterOTP = async (mobile: string, otp: string) => {
   const user = await User.findOne({ mobile });
 
@@ -75,11 +76,14 @@ const verifyRegisterOTP = async (mobile: string, otp: string) => {
   user.isMobileVerify = true;
   await User.findByIdAndUpdate(user._id, { isMobileVerify: true });
 
-  return null;
+  const { accessToken, refreshToken } = await issueAuthTokens(user);
+  user.accessToken = '';
+
+  return { accessToken, refreshToken, user };
 };
 
 // Resend the signup OTP (per-number cooldown enforced inside sendOTP).
-const resendRegisterOTP = async (mobile: string) => {
+const resendRegisterOTP = async (mobile: string, appHash?: string) => {
   const user = await User.findOne({ mobile });
 
   if (!user) {
@@ -96,7 +100,7 @@ const resendRegisterOTP = async (mobile: string) => {
     );
   }
 
-  await sendOTP(mobile);
+  await sendOTP(mobile, appHash);
 
   return null;
 };
