@@ -3,6 +3,7 @@ import AppError from '../../errors/AppError';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { FileServices } from './files.service';
+import { ADMIN_ISSUED_FILE_TYPES } from './files.constant';
 
 const createFile = catchAsync(async (req, res) => {
   const { file } = req;
@@ -29,7 +30,7 @@ const createFile = catchAsync(async (req, res) => {
 const deleteFile = catchAsync(async (req, res) => {
   const id = req.params.id as string;
 
-  const result = await FileServices.deleteFileFromDB(id);
+  const result = await FileServices.deleteFileFromDB(id, req.user.role);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -77,10 +78,34 @@ const getUserFiles = catchAsync(async (req, res) => {
   });
 });
 
+const getUserTaxDocuments = catchAsync(async (req, res) => {
+  const { userId } = req.user;
+
+  const result = await FileServices.getUserTaxDocuments(userId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Tax documents fetched successfully',
+    data: result,
+  });
+});
+
+const getAdminIssuedTypes = catchAsync(async (_req, res) => {
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Admin issued file types fetched successfully',
+    data: ADMIN_ISSUED_FILE_TYPES,
+  });
+});
+
 export const FileController = {
   createFile,
   deleteFile,
   getAllFiles,
   getSingleFile,
   getUserFiles,
+  getUserTaxDocuments,
+  getAdminIssuedTypes,
 };

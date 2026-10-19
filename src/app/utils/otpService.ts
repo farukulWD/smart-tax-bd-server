@@ -18,6 +18,10 @@ const OTP_DIGITS = 6;
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const BCRYPT_ROUNDS = 10;
 
+// Android SMS Retriever app hash: 11 chars from the base64 alphabet. The app
+// sends its own hash, so debug, release and Play-signed builds all match.
+export const APP_HASH_REGEX = /^[A-Za-z0-9+/]{11}$/;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -66,11 +70,16 @@ export const generateOTP = async (phone: string): Promise<string> => {
 
 /**
  * Generate an OTP for `phone`, then dispatch it via SMS.
+ * `appHash` (from the Android app) goes on the last line so the SMS Retriever
+ * API hands the message to the app and the code fills in silently.
  * Throws if the phone is invalid or the SMS API call fails.
  */
-export const sendOTP = async (phone: string): Promise<void> => {
+export const sendOTP = async (phone: string, appHash?: string): Promise<void> => {
   const otp = await generateOTP(phone);
-  const message = `Your Smart Tax BD OTP is: ${otp}. Valid for 5 minutes. Do not share it with anyone.`;
+  let message = `Your Smart Tax BD verification code is ${otp}. Valid for 5 minutes. Do not share it with anyone.`;
+  if (appHash && APP_HASH_REGEX.test(appHash)) {
+    message += `\n\n${appHash}`;
+  }
   await sendSMS(phone, message);
 };
 

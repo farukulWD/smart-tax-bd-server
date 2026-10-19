@@ -67,7 +67,7 @@ const refreshToken = catchAsync(async (req, res) => {
 });
 
 const forgetPassword = catchAsync(async (req, res) => {
-  await AuthServices.forgetPassword(req.body.mobile);
+  await AuthServices.forgetPassword(req.body.mobile, req.body.appHash);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

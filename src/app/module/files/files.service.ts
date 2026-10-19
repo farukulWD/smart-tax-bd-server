@@ -8,6 +8,8 @@ import { Types } from 'mongoose';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { syncTaxDocumentState } from '../Tax/tax.utils';
+import { ADMIN_ISSUED_FILE_TYPES } from './files.constant';
+import { USER_ROLE } from '../users/user.constant';
 
 const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   if (!file) {
@@ -49,9 +51,21 @@ const createFileToDB = async (file: Express.Multer.File, payload: Ifile) => {
   return fileData;
 };
 
-const deleteFileFromDB = async (id: string) => {
+const deleteFileFromDB = async (id: string, requesterRole: string) => {
   if (!id) {
     throw new AppError(httpStatus.BAD_REQUEST, 'File not found');
+  }
+
+  // Admin-issued documents (acknowledgement, certificate) can only be removed
+  // by an admin — the user must not be able to delete their own certificate.
+  if (requesterRole === USER_ROLE.user) {
+    const existing = await Files.findById(id).select('type');
+    if (existing && ADMIN_ISSUED_FILE_TYPES.includes(existing.type)) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'This document was issued by admin and cannot be deleted',
+      );
+    }
   }
 
   const fileData = await Files.findByIdAndDelete(id);
@@ -186,7 +200,26 @@ const getUserFiles = async (userId: string) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
   }
 
-  const fileData = await Files.find({ userId });
+  // Admin-issued documents live on the separate Tax Documents route.
+  const fileData = await Files.find({
+    userId,
+    type: { $nin: ADMIN_ISSUED_FILE_TYPES },
+  }).sort({ createdAt: -1 });
+
+  return fileData;
+};
+
+const getUserTaxDocuments = async (userId: string) => {
+  if (!userId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
+  }
+
+  const fileData = await Files.find({
+    userId,
+    type: { $in: ADMIN_ISSUED_FILE_TYPES },
+  })
+    .populate('orderId', 'tax_year status')
+    .sort({ createdAt: -1 });
 
   return fileData;
 };
@@ -197,4 +230,5 @@ export const FileServices = {
   getAllFiles,
   getSingleFile,
   getUserFiles,
+  getUserTaxDocuments,
 };

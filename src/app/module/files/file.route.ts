@@ -36,5 +36,15 @@ router.get(
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
   FileController.getUserFiles
 );
+router.get(
+  '/get-user-tax-documents',
+  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
+  FileController.getUserTaxDocuments
+);
+router.get(
+  '/admin-issued-types',
+  auth(USER_ROLE.admin, USER_ROLE.superAdmin),
+  FileController.getAdminIssuedTypes
+);
 
 export const FileRoute = router;
