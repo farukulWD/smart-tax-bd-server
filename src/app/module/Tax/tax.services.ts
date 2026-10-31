@@ -21,6 +21,7 @@ import {
 } from './tax.utils';
 import { CouponService } from '../coupons/coupon.service';
 import { calculateCouponDiscount } from '../coupons/coupon.utils';
+import { SettingsService } from '../settings/settings.service';
 
 type StepOnePayload = {
   personal_information: IPersonalInformation;
@@ -132,9 +133,14 @@ const createTaxStepOneToDB = async (
   taxData = normalizeLegacyStepOne(taxData);
   await validateStepOneData(taxData);
 
+  // Snapshot the admin-configured fee so later fee changes don't touch this order.
+  const service_fee = await SettingsService.getServiceFee();
+
   const payload = {
     ...taxData,
     userId,
+    fee_amount: service_fee,
+    total_amount: service_fee,
     status: 'draft' as const,
     current_step: 1 as const,
   };

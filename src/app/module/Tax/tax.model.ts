@@ -1,8 +1,7 @@
 import { Schema, model } from 'mongoose';
 import { ITax } from './tax.interface';
 import { DISCOUNT_TYPES } from '../coupons/coupon.interface';
-
-const fee_amount = 1050;
+import { DEFAULT_SERVICE_FEE } from '../settings/settings.constant';
 
 const taxModel = new Schema<ITax>(
   {
@@ -104,7 +103,7 @@ const taxModel = new Schema<ITax>(
     fee_amount: {
       type: Number,
       required: true,
-      default: fee_amount || 0,
+      default: DEFAULT_SERVICE_FEE,
     },
     is_fee_amount_paid: {
       type: Boolean,
@@ -121,7 +120,7 @@ const taxModel = new Schema<ITax>(
     },
     total_amount: {
       type: Number,
-      default: fee_amount || 0,
+      default: DEFAULT_SERVICE_FEE,
     },
     total_paid_amount: {
       type: Number,
