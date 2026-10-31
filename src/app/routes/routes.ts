@@ -15,6 +15,7 @@ import { FileNameRoutes } from '../module/fileNames/fileName.route';
 import { LegacyIncomeSourceRoutes } from '../module/taxTypes/legacyIncomeSource.route';
 import { CouponRoutes } from '../module/coupons/coupon.route';
 import { DashboardRoutes } from '../module/Dashboard/dashboard.route';
+import { SettingsRoutes } from '../module/settings/settings.route';
 
 const router = Router();
 
@@ -83,6 +84,10 @@ const moduleRoutes = [
   {
     path: '/dashboard',
     route: DashboardRoutes,
+  },
+  {
+    path: '/settings',
+    route: SettingsRoutes,
   },
 ];
 
