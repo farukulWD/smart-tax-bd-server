@@ -26,11 +26,20 @@ export default {
   cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET,
   email_user: process.env.EMAIL_USER,
   email_pass: process.env.EMAIL_PASS,
-  // sslcommerz config
-  store_id: process.env.STORE_ID,
-  store_password: process.env.STORE_PASSWORD,
-  is_live: process.env.IS_LIVE === 'true',
-  payment_base_url: process.env.PAYMENT_BASE_URL,
+  // EPS payment gateway
+  eps: {
+    // No live default on purpose: production must set it explicitly, and a
+    // sandbox URL there is refused (see `assertEpsConfigured` in utils/eps).
+    base_url: process.env.EPS_BASE_URL || 'https://sandboxpgapi.eps.com.bd',
+    merchant_id: process.env.EPS_MERCHANT_ID,
+    store_id: process.env.EPS_STORE_ID,
+    username: process.env.EPS_USERNAME,
+    password: process.env.EPS_PASSWORD,
+    hash_key: process.env.EPS_HASH_KEY,
+    // A deployed dev server runs with NODE_ENV=production but must use the
+    // sandbox; it opts in explicitly. Never set this on the live server.
+    allow_sandbox: process.env.EPS_ALLOW_SANDBOX === 'true',
+  },
 
   // sms
   sms_user_name: process.env.SMS_API_USERNAME,

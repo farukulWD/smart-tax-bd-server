@@ -17,7 +17,7 @@ const EMPTY_USAGE: ICouponUsage = {
  *
  * One aggregation for the whole page rather than a count per row. "Settled"
  * (a real redemption) is deliberately separated from "pending": a coupon
- * applied to an order that is still awaiting manual bKash payment has not been
+ * applied to an order that is still awaiting payment has not been
  * redeemed yet, and counting it as such would overstate the cost.
  */
 const getUsageByCouponIds = async (

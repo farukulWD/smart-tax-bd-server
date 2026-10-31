@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { TaxService } from './tax.services';
 import sendResponse from '../../utils/sendResponse';
 import httpStatus from 'http-status';
+import { paymentService } from '../payments/payment.service';
 
 const createTaxStepOne = catchAsync(async (req: Request, res: Response) => {
   const userId = String(req.user?.userId || '');
@@ -77,7 +78,11 @@ const adminUploadDocumentForUser = catchAsync(
 const payTaxStepThree = catchAsync(async (req: Request, res: Response) => {
   const userId = String(req.user?.userId || '');
   const taxId = String(req.params.taxId || '');
-  const result = await TaxService.initTaxStepThreePaymentToDB(userId, taxId);
+  const result = await TaxService.initTaxStepThreePaymentToDB(
+    userId,
+    taxId,
+    String(req.user?.role || ''),
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -87,26 +92,11 @@ const payTaxStepThree = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-// TEMPORARY: places the order without the SSLCommerz gateway (manual bKash).
-const placeTaxOrderManually = catchAsync(async (req: Request, res: Response) => {
-  const userId = String(req.user?.userId || '');
-  const taxId = String(req.params.taxId || '');
-  const result = await TaxService.placeTaxOrderManuallyToDB(userId, taxId);
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Order placed. The author will contact you for payment.',
-    data: result,
-  });
-});
-
+// The tax-order return URLs share the payments flow: the outcome always comes
+// from EPS, never from which URL the browser landed on.
 const taxPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
-  const transactionId = String(
-    req.body?.tran_id || req.query?.tran_id || req.params?.transactionId || '',
-  );
-  const result =
-    await TaxService.completeTaxOrderPaymentSuccessToDB(transactionId);
+  const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
+  const result = await paymentService.success(transactionId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -118,39 +108,25 @@ const taxPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
 
 const taxPaymentFail = catchAsync(async (req: Request, res: Response) => {
   const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
-  await TaxService.markTaxOrderPaymentFailedToDB(transactionId);
+  const result = await paymentService.fail(transactionId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
-    success: false,
-    message: 'Payment failed',
-    data: null,
+    success: true,
+    message: 'Payment status updated',
+    data: result,
   });
 });
 
 const taxPaymentCancel = catchAsync(async (req: Request, res: Response) => {
   const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
-  await TaxService.markTaxOrderPaymentFailedToDB(transactionId);
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: false,
-    message: 'Payment cancelled',
-    data: null,
-  });
-});
-
-const taxPaymentIpn = catchAsync(async (req: Request, res: Response) => {
-  const transactionId = String(req.body?.tran_id || req.query?.tran_id || '');
-  if (transactionId) {
-    await TaxService.completeTaxOrderPaymentSuccessToDB(transactionId);
-  }
+  const result = await paymentService.cancel(transactionId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'IPN received',
-    data: null,
+    message: 'Payment status updated',
+    data: result,
   });
 });
 
@@ -237,11 +213,9 @@ export const TaxController = {
   updateTaxStepOne,
   uploadTaxStepTwoDocuments,
   payTaxStepThree,
-  placeTaxOrderManually,
   taxPaymentSuccess,
   taxPaymentFail,
   taxPaymentCancel,
-  taxPaymentIpn,
   getSingleTaxOrder,
   getMyTaxOrders,
   getAllTaxOrders,

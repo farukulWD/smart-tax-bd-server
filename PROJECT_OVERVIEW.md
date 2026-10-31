@@ -8,7 +8,7 @@ The backend server for the Smart Tax BD platform, responsible for managing user 
 - **Framework**: Express.js with TypeScript
 - **Database**: MongoDB (via Mongoose)
 - **Authentication**: JWT (JSON Web Tokens) & bcryptjs
-- **Payment Gateway**: SSLCommerz
+- **Payment Gateway**: EPS (Easy Payment System)
 - **File Storage**: Cloudinary (via Multer)
 - **Messaging/Task Queue**: RabbitMQ (amqplib)
 - **OCR**: Tesseract.js
@@ -35,7 +35,7 @@ The backend server for the Smart Tax BD platform, responsible for managing user 
 - **Authentication & Authorization**: Role-based access control (User/Admin).
 - **Tax Management**: Processing and storing tax-related documents and data.
 - **OCR Integration**: Extracting data from uploaded documents using Tesseract.js.
-- **Payment Integration**: Secure transactions via SSLCommerz.
+- **Payment Integration**: Secure transactions via EPS, verified server-side before an order is credited.
 - **File Uploads**: Image and document management using Cloudinary.
 - **Real-time Notifications**: Socket.io for live updates.
 - **Background Jobs**: Cron jobs for automated tasks and RabbitMQ for message queuing.

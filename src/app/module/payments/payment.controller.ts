@@ -9,31 +9,22 @@ const initPayment = catchAsync(async (req, res) => {
     orderId,
     userId,
     paymentFor,
+    ipAddress: req.ip,
+    role: req.user.role,
   };
 
-  const sslResponse = await paymentService.inintPaymentToDb(paymentData);
+  const result = await paymentService.inintPaymentToDb(paymentData);
 
   sendResponse(res, {
     statusCode: 200,
     success: true,
     message: 'Payment initiated successfully',
-    data: sslResponse,
+    data: result,
   });
 });
 
-// const ipn = catchAsync(async (req, res) => {
-//   const { tran_id, status } = req.body;
-//   const payment = await paymentService.ipn(tran_id, status);
-//   sendResponse(res, {
-//     statusCode: 200,
-//     success: true,
-//     message: 'Payment processed successfully',
-//     data: payment,
-//   });
-// });
-
 const success = catchAsync(async (req, res) => {
-  const { tran_id } = req.body;
+  const tran_id = String(req.body?.tran_id || req.query?.tran_id || '');
   const payment = await paymentService.success(tran_id);
   sendResponse(res, {
     statusCode: 200,
@@ -44,23 +35,23 @@ const success = catchAsync(async (req, res) => {
 });
 
 const fail = catchAsync(async (req, res) => {
-  const { tran_id } = req.body;
+  const tran_id = String(req.body?.tran_id || req.query?.tran_id || '');
   const payment = await paymentService.fail(tran_id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: 'Payment failed successfully',
+    message: 'Payment status updated',
     data: payment,
   });
 });
 
 const cancel = catchAsync(async (req, res) => {
-  const { tran_id } = req.body;
+  const tran_id = String(req.body?.tran_id || req.query?.tran_id || '');
   const payment = await paymentService.cancel(tran_id);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: 'Payment cancelled successfully',
+    message: 'Payment status updated',
     data: payment,
   });
 });
@@ -103,7 +94,10 @@ const getUserPayment = catchAsync(async (req, res) => {
 
 const getAPaymentByOrderId = catchAsync(async (req, res) => {
   const orderId = req.params.orderId as string;
-  const payment = await paymentService.getAPaymentByOrderId(orderId);
+  const payment = await paymentService.getAPaymentByOrderId(orderId, {
+    userId: req.user.userId,
+    role: req.user.role,
+  });
   sendResponse(res, {
     statusCode: 200,
     success: true,

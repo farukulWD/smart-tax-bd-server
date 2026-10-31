@@ -17,4 +17,6 @@ const recordCashPayment = z.object({
 
 export const PaymentValidation = {
   recordCashPayment,
+  // Same body shape: which order, and which bucket to pay.
+  initPayment: recordCashPayment,
 };

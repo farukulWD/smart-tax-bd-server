@@ -1,3 +1,4 @@
+import { USER_ROLE } from '../users/user.constant';
 import AppError from '../../errors/AppError';
 import { ITax, IPersonalInformation } from './tax.interface';
 import { IAppliedCoupon } from '../coupons/coupon.interface';
@@ -9,8 +10,6 @@ import { Payment } from '../payments/payment.model';
 import { getPaymentsType } from './tax.constant';
 import { paymentService } from '../payments/payment.service';
 import { IPaymentDataForInit } from '../payments/payment.interface';
-import { User } from '../users/user.model';
-import { sendSMS } from '../../utils/smsService';
 import { notificationService } from '../notifications/notification.service';
 import { NOTIFICATION_TYPE } from '../notifications/notification.constant';
 import { sendImageToCloudinary } from '../../utils/sendImageToCloudinary';
@@ -279,11 +278,23 @@ const uploadTaxStepTwoDocumentsToDB = async (
   return result;
 };
 
-const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
+const initTaxStepThreePaymentToDB = async (
+  userId: string,
+  taxId: string,
+  role: string,
+) => {
   const taxOrder = await Tax.findById(taxId);
 
   if (!taxOrder) {
     throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
+  }
+
+  // A user may only pay for their own order; admins may act on any order.
+  if (role === USER_ROLE.user && taxOrder.userId.toString() !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You can only pay for your own orders',
+    );
   }
 
   if (!taxOrder.files_upload_pending) {
@@ -320,7 +331,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     const tran_id = new Types.ObjectId().toString();
 
     await Payment.create({
-      userId,
+      userId: taxOrder.userId,
       orderId: taxOrder._id,
       amount: 0,
       paymentFor: 'fee_amount',
@@ -344,7 +355,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
 
     notificationService
       .sendNotification({
-        recipientId: userId,
+        recipientId: taxOrder.userId.toString(),
         type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
         title: 'Tax Order Placed',
         message:
@@ -360,6 +371,7 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     return {
       gatewayPageURL: null,
       paid: true,
+      reason: 'coupon' as const,
       tax_order: settledOrder,
     };
   }
@@ -368,14 +380,26 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     orderId: taxId,
     userId,
     paymentFor: 'fee_amount',
+    role,
   };
 
-  const { gatewayPageURL } = await paymentService.inintPaymentToDb(paymentData);
+  const result = await paymentService.inintPaymentToDb(paymentData);
 
+  // An earlier checkout turned out to have gone through: the order is placed.
+  if (result.paid) {
+    return {
+      gatewayPageURL: null,
+      paid: true,
+      reason: result.reason,
+      tax_order: await Tax.findById(taxOrder._id),
+    };
+  }
+
+  const { gatewayPageURL } = result;
   if (!gatewayPageURL) {
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
-      'Failed to initialize SSLCommerz payment',
+      'Failed to initialize EPS payment',
     );
   }
 
@@ -383,188 +407,6 @@ const initTaxStepThreePaymentToDB = async (userId: string, taxId: string) => {
     gatewayPageURL,
     paid: false,
   };
-};
-
-// TEMPORARY: Places the order without going through the SSLCommerz gateway.
-// Used while bKash payment is handled manually (author contacts the user).
-// Remove / replace with real gateway flow when payments are reconnected.
-const placeTaxOrderManuallyToDB = async (userId: string, taxId: string) => {
-  const taxOrder = await Tax.findById(taxId);
-
-  if (!taxOrder) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
-  }
-
-  // Same document guard used by the real step-3 payment init
-  if (!taxOrder.files_upload_pending) {
-    if (!taxOrder.documents || taxOrder.documents.length === 0) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Please upload required documents first',
-      );
-    }
-
-    const files = await Files.find({
-      _id: { $in: taxOrder.documents },
-      userId: taxOrder.userId,
-    }).select('type');
-    const uploadedTypes = new Set(files.map(file => file.type));
-    const requiredDocuments = await getRequiredDocumentsFromTax(taxOrder);
-    const missingDocuments = requiredDocuments.filter(
-      doc => !uploadedTypes.has(doc),
-    );
-
-    if (missingDocuments.length > 0) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Cannot place order before completing required documents: ${missingDocuments.join(', ')}`,
-      );
-    }
-  }
-
-  // Coupon-discounted fee, not the list fee.
-  const payableFee = getPayableFeeAmount(taxOrder);
-  const tran_id = new Types.ObjectId().toString();
-
-  // // Record the transaction so it stays visible in the admin payments list
-  // await Payment.create({
-  //   userId,
-  //   orderId: taxOrder._id,
-  //   amount: payableFee,
-  //   paymentFor: 'fee_amount',
-  //   currency: 'BDT',
-  //   status: 'payment_pending',
-  //   transaction_id: tran_id,
-  //   payment_method: 'manual_bkash',
-  // });
-
-  // A coupon covering the whole fee leaves nothing for the author to collect,
-  // so the order is placed as settled rather than parked in `payment_pending`.
-  const isFullyDiscounted = payableFee <= 0;
-
-  const updatedOrder = await Tax.findByIdAndUpdate(
-    taxOrder._id,
-    {
-      current_step: 3,
-      status: isFullyDiscounted ? 'order_placed' : 'payment_pending',
-      total_amount: payableFee,
-      total_paid_amount: 0,
-      is_fee_amount_paid: isFullyDiscounted,
-    },
-    { new: true },
-  );
-
-  notificationService
-    .sendNotification({
-      recipientId: userId,
-      type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
-      title: 'Tax Order Placed',
-      message: isFullyDiscounted
-        ? 'Your tax order has been placed. The coupon covered the full service fee, so nothing is due.'
-        : 'Your tax order has been placed. The author will contact you for payment.',
-      data: {
-        orderId: taxOrder._id,
-        transactionId: tran_id,
-        amount: payableFee,
-      },
-    })
-    .catch(() => {});
-
-  return {
-    tax_order: updatedOrder,
-  };
-};
-
-const completeTaxOrderPaymentSuccessToDB = async (transactionId: string) => {
-  if (!transactionId) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Transaction ID is required');
-  }
-
-  // Atomic transition: only one concurrent caller wins; others get null back
-  const payment = await Payment.findOneAndUpdate(
-    { transaction_id: transactionId, status: { $ne: 'completed' } },
-    { $set: { status: 'completed' } },
-    { new: true },
-  );
-
-  if (!payment) {
-    // Already completed (idempotent) or not found
-    const existing = await Payment.findOne({ transaction_id: transactionId });
-    if (!existing) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Payment not found');
-    }
-    const existingOrder = await Tax.findById(existing.orderId);
-    return { payment: existing, tax_order: existingOrder };
-  }
-
-  const taxOrder = await Tax.findById(payment.orderId);
-  if (!taxOrder) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Tax order not found');
-  }
-
-  const payableFee = getPayableFeeAmount(taxOrder);
-
-  const updatedOrder = await Tax.findByIdAndUpdate(
-    taxOrder._id,
-    {
-      current_step: 3,
-      status: 'order_placed',
-      total_amount: payableFee,
-      total_paid_amount: payableFee,
-      ...getPaymentsType(payment.paymentFor),
-    },
-    { new: true },
-  );
-  // Fire-and-forget SMS — do not await so the response is not blocked
-  User.findById(payment.userId)
-    .select('mobile name')
-    .then(user => {
-      if (!user?.mobile) return;
-      const labelMap: Record<string, string> = {
-        fee_amount: 'Service Fee',
-        fee_due_amount: 'Due Fee',
-        tax_payable_amount: 'Tax Payable Amount',
-        remaining_all_amount: 'All Remaining Amount',
-      };
-      const label = labelMap[payment.paymentFor] ?? payment.paymentFor;
-      const message = `Dear ${user.name}, BDT ${payment.amount} for ${label} received. Txn: ${transactionId} -Smart Tax BD`;
-      return sendSMS(user.mobile, message);
-    })
-    .catch(() => {
-      // SMS failure must never break the payment success flow
-    });
-
-  notificationService
-    .sendNotification({
-      recipientId: payment.userId.toString(),
-      type: NOTIFICATION_TYPE.TAX_ORDER_PLACED,
-      title: 'Tax Order Placed',
-      message: `Your tax order has been placed successfully. Transaction: ${transactionId}.`,
-      data: { orderId: taxOrder._id, transactionId, amount: payment.amount },
-    })
-    .catch(() => {});
-
-  return {
-    payment,
-    tax_order: updatedOrder,
-  };
-};
-
-const markTaxOrderPaymentFailedToDB = async (transactionId: string) => {
-  if (!transactionId) {
-    return null;
-  }
-
-  const payment = await Payment.findOne({ transaction_id: transactionId });
-  if (!payment) {
-    return null;
-  }
-
-  if (payment.status !== 'completed') {
-    payment.status = 'failed';
-    await payment.save();
-  }
-  return payment;
 };
 
 const getTaxOrderByIdFromDB = async (taxId: string) => {
@@ -852,9 +694,6 @@ export const TaxService = {
   updateTaxStepOneToDB,
   uploadTaxStepTwoDocumentsToDB,
   initTaxStepThreePaymentToDB,
-  placeTaxOrderManuallyToDB,
-  completeTaxOrderPaymentSuccessToDB,
-  markTaxOrderPaymentFailedToDB,
   getTaxOrderByIdFromDB,
   getMyTaxOrdersFromDB,
   getAllTaxOrdersFromDB,

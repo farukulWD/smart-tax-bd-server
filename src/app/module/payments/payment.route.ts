@@ -4,20 +4,25 @@ import { paymentController } from './payment.controller';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { PaymentValidation } from './payment.validation';
+import { paymentCallbackLimiter } from '../../middlewares/rateLimiter';
 
 const router = Router();
 
-router.post('/initialize', auth(USER_ROLE.user), paymentController.initPayment);
+router.post(
+  '/initialize',
+  auth(USER_ROLE.user),
+  validateRequest(PaymentValidation.initPayment),
+  paymentController.initPayment,
+);
 router.post(
   '/record-cash',
   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
   validateRequest(PaymentValidation.recordCashPayment),
   paymentController.recordCashPayment,
 );
-// router.post('/ipn', paymentController.ipn);
-router.post('/success', paymentController.success);
-router.post('/fail', paymentController.fail);
-router.post('/cancel', paymentController.cancel);
+router.post('/success', paymentCallbackLimiter, paymentController.success);
+router.post('/fail', paymentCallbackLimiter, paymentController.fail);
+router.post('/cancel', paymentCallbackLimiter, paymentController.cancel);
 router.get(
   '/all',
   auth(USER_ROLE.admin, USER_ROLE.superAdmin),
