@@ -1,6 +1,7 @@
 import { Router, NextFunction, Request, Response } from 'express';
 import { TaxController } from './tax.controller';
 import auth from '../../middlewares/auth';
+import { paymentCallbackLimiter } from '../../middlewares/rateLimiter';
 import { USER_ROLE } from '../users/user.constant';
 import { upload } from '../../utils/sendImageToCloudinary';
 
@@ -30,16 +31,9 @@ router.post(
   TaxController.payTaxStepThree,
 );
 
-// TEMPORARY: place order without the SSLCommerz gateway (manual bKash payment).
-router.post(
-  '/:taxId/place-manual',
-  auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
-  TaxController.placeTaxOrderManually,
-);
-
-// Coupon applied to the service fee. Persisted on the order so both the manual
-// and the gateway payment path charge the discounted amount — the client is
-// never trusted to send a discount value.
+// Coupon applied to the service fee. Persisted on the order so the gateway
+// payment charges the discounted amount — the client is never trusted to send
+// a discount value.
 router.post(
   '/:taxId/apply-coupon',
   auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.superAdmin),
@@ -58,10 +52,21 @@ router.patch(
   TaxController.updateTaxOrder,
 );
 
-router.post('/payment/success', TaxController.taxPaymentSuccess);
-router.post('/payment/fail', TaxController.taxPaymentFail);
-router.post('/payment/cancel', TaxController.taxPaymentCancel);
-router.post('/payment/ipn', TaxController.taxPaymentIpn);
+router.post(
+  '/payment/success',
+  paymentCallbackLimiter,
+  TaxController.taxPaymentSuccess,
+);
+router.post(
+  '/payment/fail',
+  paymentCallbackLimiter,
+  TaxController.taxPaymentFail,
+);
+router.post(
+  '/payment/cancel',
+  paymentCallbackLimiter,
+  TaxController.taxPaymentCancel,
+);
 
 router.get('/my-orders', auth(USER_ROLE.user), TaxController.getMyTaxOrders);
 

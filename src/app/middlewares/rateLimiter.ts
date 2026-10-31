@@ -83,3 +83,21 @@ export const otpIpLimiter = rateLimit({
     'Too many requests from this network. Please wait 15 minutes before trying again.',
   ),
 });
+
+/**
+ * Payment return URLs (success / fail / cancel) need no login, and each call
+ * can trigger a status request to EPS. Capping them per IP stops anyone from
+ * hammering EPS through us with guessed transaction IDs. A real user hits one
+ * of these once or twice per payment; the headroom is for carrier CGNAT, where
+ * many customers share one IP.
+ */
+export const paymentCallbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => ipKeyGenerator(req.ip ?? ''),
+  handler: rejectWith(
+    'Too many payment status requests. Please wait a few minutes and try again.',
+  ),
+});

@@ -1,7 +1,7 @@
 # CLAUDE.md — Smart Tax BD Server
 
 ## Project Overview
-Node.js/Express/TypeScript backend for the Smart Tax BD platform. Handles user management, tax processing, payments (SSLCommerz), file uploads (Cloudinary), OCR (Tesseract.js), real-time notifications (Socket.io), and background jobs (RabbitMQ, node-cron).
+Node.js/Express/TypeScript backend for the Smart Tax BD platform. Handles user management, tax processing, payments (EPS), file uploads (Cloudinary), OCR (Tesseract.js), real-time notifications (Socket.io), and background jobs (RabbitMQ, node-cron).
 
 ---
 
@@ -170,7 +170,7 @@ export const MyValidation = { createSchema };
 - `src/app/module/users/` — user management, RBAC
 - `src/app/module/Auth/` — JWT authentication
 - `src/app/module/Tax/` — tax document processing
-- `src/app/module/payments/` — SSLCommerz payment flow
+- `src/app/module/payments/` — EPS payment flow (`src/app/utils/eps.ts` is the gateway client)
 - `src/app/module/files/` — Cloudinary file uploads
 - `src/app/module/updateNews/` — news CRUD
 - `src/app/module/Dashboard/` — dashboard aggregations

@@ -32,4 +32,6 @@ export interface IPaymentDataForInit {
   orderId: string;
   userId: string;
   paymentFor: IPayment['paymentFor'];
+  ipAddress?: string;
+  role?: string;
 }
