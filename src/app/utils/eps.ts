@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import axios from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 import httpStatus from 'http-status';
 import config from '../config';
 import AppError from '../errors/AppError';
@@ -64,6 +64,46 @@ const epsClient = axios.create({
   baseURL: config.eps.base_url,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
+  // EPS answers a rejected token with a 302 to its HTML login page. Following
+  // it turns the auth failure into a confusing 404, so treat it as an error.
+  maxRedirects: 0,
+});
+
+const isTokenRejected = (status?: number) =>
+  status === 302 || status === 401 || status === 403;
+
+// A raw AxiosError carries the request config (Bearer token, x-hash, customer
+// data), so it must never reach the global error handler. Log what EPS said
+// and replace it with a plain gateway error.
+epsClient.interceptors.response.use(undefined, async (error) => {
+  if (axios.isAxiosError(error)) {
+    const request = error.config as
+      | (InternalAxiosRequestConfig & { _epsRetried?: boolean })
+      | undefined;
+
+    // A token EPS no longer accepts: drop it and retry once with a fresh one.
+    if (
+      request &&
+      !request._epsRetried &&
+      request.headers?.Authorization &&
+      isTokenRejected(error.response?.status)
+    ) {
+      request._epsRetried = true;
+      cachedToken = null;
+      request.headers.Authorization = `Bearer ${await getEpsToken()}`;
+      return epsClient.request(request);
+    }
+
+    const body = error.response?.data;
+    errorlogger.error(
+      `EPS ${error.config?.method?.toUpperCase()} ${error.config?.url} failed: ${error.response?.status ?? error.code} ${typeof body === 'string' ? body : JSON.stringify(body ?? '')}`,
+    );
+    throw new AppError(
+      httpStatus.BAD_GATEWAY,
+      'Online payment is not available right now. Please try again later.',
+    );
+  }
+  throw error;
 });
 
 export const generateEpsHash = (
@@ -101,6 +141,17 @@ const assertEpsConfigured = () => {
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+const getJwtExpiry = (token: string) => {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split('.')[1], 'base64url').toString('utf8'),
+    );
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+};
+
 export const getEpsToken = async () => {
   assertEpsConfigured();
 
@@ -123,12 +174,13 @@ export const getEpsToken = async () => {
     );
   }
 
-  // EPS returns a timezone-less timestamp; fall back to 30 minutes if it does
-  // not parse.
-  const expiresAt = data.expireDate ? Date.parse(data.expireDate) : NaN;
+  // Take the expiry from the JWT's own `exp` claim. EPS's `expireDate` is
+  // Bangladesh time with no timezone, so parsing it on a UTC server kept
+  // expired tokens cached for six extra hours. Fall back to 30 minutes.
+  const expiresAt = getJwtExpiry(data.token);
   cachedToken = {
     token: data.token,
-    expiresAt: Number.isNaN(expiresAt) ? Date.now() + 30 * 60_000 : expiresAt,
+    expiresAt: expiresAt ?? Date.now() + 30 * 60_000,
   };
 
   return cachedToken.token;
