@@ -9,9 +9,14 @@ import handleDuplicateError from '../errors/handleDuplicateError';
 import handleValidationError from '../errors/handleValidationError';
 import handleZodError from '../errors/handleZodError';
 import { TErrorSources } from '../interface/error';
+import { errorlogger } from '../shared/logger';
 
 const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
-  console.log({ err: err });
+  // Log a summary only: dumping the raw error would write secrets such as an
+  // AxiosError's auth headers and request body to the server logs.
+  errorlogger.error(
+    `${req.method} ${req.originalUrl} failed: ${err?.name ?? 'Error'}: ${err?.message ?? err}${err?.stack ? `\n${err.stack}` : ''}`,
+  );
   // Setting default values
   let statusCode = 500;
   let message = 'Something went wrong!';
@@ -69,7 +74,8 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
     message,
     needsVerification,
     errorSources,
-    err,
+    // The raw error can hold secrets (e.g. an AxiosError's auth headers).
+    err: config.env === 'development' ? err : undefined,
     stack: config.env === 'development' ? err?.stack : null,
   });
 };
