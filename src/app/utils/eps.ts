@@ -62,15 +62,25 @@ export type TEpsTransactionStatus = {
 
 const epsClient = axios.create({
   baseURL: config.eps.base_url,
-  timeout: 30000,
+  // EPS normally answers in well under a second, but its live server sometimes
+  // accepts a request and never replies. Give up early and retry instead.
+  timeout: 8000,
   headers: { 'Content-Type': 'application/json' },
   // EPS answers a rejected token with a 302 to its HTML login page. Following
   // it turns the auth failure into a confusing 404, so treat it as an error.
   maxRedirects: 0,
 });
 
+const EPS_MAX_NETWORK_RETRIES = 2;
+
 const isTokenRejected = (status?: number) =>
   status === 302 || status === 401 || status === 403;
+
+const isNetworkFailure = (code?: string) =>
+  code === 'ECONNABORTED' ||
+  code === 'ETIMEDOUT' ||
+  code === 'ECONNRESET' ||
+  code === 'ECONNREFUSED';
 
 // A raw AxiosError carries the request config (Bearer token, x-hash, customer
 // data), so it must never reach the global error handler. Log what EPS said
@@ -78,8 +88,26 @@ const isTokenRejected = (status?: number) =>
 epsClient.interceptors.response.use(undefined, async (error) => {
   if (axios.isAxiosError(error)) {
     const request = error.config as
-      | (InternalAxiosRequestConfig & { _epsRetried?: boolean })
+      | (InternalAxiosRequestConfig & {
+          _epsRetried?: boolean;
+          _epsNetworkRetries?: number;
+        })
       | undefined;
+
+    // EPS hung or dropped the connection: try again. Retrying InitializeEPS
+    // with the same merchantTransactionId cannot charge twice, since nothing is
+    // charged until the customer pays on the page it returns.
+    if (
+      request &&
+      isNetworkFailure(error.code) &&
+      (request._epsNetworkRetries ?? 0) < EPS_MAX_NETWORK_RETRIES
+    ) {
+      request._epsNetworkRetries = (request._epsNetworkRetries ?? 0) + 1;
+      errorlogger.error(
+        `EPS ${request.method?.toUpperCase()} ${request.url} ${error.code}, retry ${request._epsNetworkRetries}/${EPS_MAX_NETWORK_RETRIES}`,
+      );
+      return epsClient.request(request);
+    }
 
     // A token EPS no longer accepts: drop it and retry once with a fresh one.
     if (
